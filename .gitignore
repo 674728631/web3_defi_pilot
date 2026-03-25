@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+
+# Hardhat
+contracts/cache/
+contracts/artifacts/
+contracts/typechain-types/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeFi Pilot — AI Cross-Chain DeFi Protocol</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Exo+2:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #06080f;
+  --bg-secondary: #0b0e18;
+  --bg-card: rgba(12, 17, 30, 0.75);
+  --bg-glass: rgba(15, 22, 42, 0.55);
+  --border-glow: rgba(0, 224, 255, 0.15);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --cyan: #00e0ff;
+  --cyan-dim: #00a0b8;
+  --cyan-glow: rgba(0, 224, 255, 0.3);
+  --purple: #a855f7;
+  --purple-dim: #7c3aed;
+  --purple-glow: rgba(168, 85, 247, 0.25);
+  --green: #22d3a7;
+  --green-glow: rgba(34, 211, 167, 0.25);
+  --red: #f43f5e;
+  --amber: #f59e0b;
+  --text-primary: #e8edf5;
+  --text-secondary: #7a8499;
+  --text-dim: #4a5568;
+  --gradient-main: linear-gradient(135deg, #00e0ff 0%, #a855f7 100%);
+  --gradient-card: linear-gradient(160deg, rgba(0, 224, 255, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Exo 2', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ======= Animated Background ======= */
+#bg-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+.grid-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 1;
+  background-image:
+    linear-gradient(rgba(0, 224, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 224, 255, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+}
+
+.vignette {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 1;
+  background: radial-gradient(ellipse at center, transparent 40%, var(--bg-primary) 100%);
+  pointer-events: none;
+}
+
+/* ======= Top Navigation ======= */
+.top-nav {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 64px;
+  background: rgba(6, 8, 15, 0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-glow);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--gradient-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 0 20px var(--cyan-glow);
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px var(--cyan-glow); }
+  50% { box-shadow: 0 0 35px var(--cyan-glow), 0 0 60px rgba(0, 224, 255, 0.1); }
+}
+
+.logo-text {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  background: var(--gradient-main);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 2px;
+}
+
+.logo-tag {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-left: 4px;
+}
+
+.nav-center {
+  display: flex;
+  gap: 8px;
+}
+
+.nav-item {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.3s;
+  letter-spacing: 0.5px;
+  position: relative;
+}
+
+.nav-item:hover { color: var(--text-primary); background: rgba(255,255,255,0.04); }
+
+.nav-item.active {
+  color: var(--cyan);
+  background: rgba(0, 224, 255, 0.08);
+}
+
+.nav-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 20%;
+  width: 60%;
+  height: 2px;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan-glow);
+  border-radius: 1px;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.chain-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border-glow);
+  background: var(--bg-glass);
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.chain-selector:hover {
+  border-color: var(--cyan);
+  box-shadow: 0 0 15px rgba(0, 224, 255, 0.1);
+}
+
+.chain-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green-glow);
+}
+
+.wallet-btn {
+  padding: 8px 20px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 224, 255, 0.3);
+  background: linear-gradient(135deg, rgba(0, 224, 255, 0.12) 0%, rgba(168, 85, 247, 0.12) 100%);
+  font-family: 'Exo 2', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cyan);
+  cursor: pointer;
+  transition: all 0.3s;
+  letter-spacing: 0.5px;
+}
+
+.wallet-btn:hover {
+  background: linear-gradient(135deg, rgba(0, 224, 255, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%);
+  box-shadow: 0 0 25px rgba(0, 224, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+/* ======= Main Layout ======= */
+.main-container {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  height: calc(100vh - 64px);
+  gap: 0;
+}
+
+/* ======= AI Chat Panel ======= */
+.chat-panel {
+  border-right: 1px solid var(--border-glow);
+  display: flex;
+  flex-direction: column;
+  background: rgba(6, 8, 15, 0.6);
+  backdrop-filter: blur(10px);
+  height: calc(100vh - 64px);
+  overflow: hidden;
+}
+
+.chat-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ai-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--gradient-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  position: relative;
+  box-shadow: 0 0 20px var(--cyan-glow);
+}
+
+.ai-avatar::after {
+  content: '';
+  position: absolute;
+  top: -2px; right: -2px;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--green);
+  border: 2px solid var(--bg-primary);
+  box-shadow: 0 0 6px var(--green-glow);
+}
+
+.chat-header-info h3 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.chat-header-info span {
+  font-size: 11px;
+  color: var(--green);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: rgba(0, 224, 255, 0.2); border-radius: 2px; }
+
+.msg {
+  max-width: 92%;
+  animation: msg-in 0.4s ease-out;
+}
+
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.msg.user {
+  align-self: flex-end;
+}
+
+.msg.ai {
+  align-self: flex-start;
+}
+
+.msg-bubble {
+  padding: 14px 18px;
+  border-radius: 16px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  letter-spacing: 0.2px;
+}
+
+.msg.user .msg-bubble {
+  background: linear-gradient(135deg, rgba(0, 224, 255, 0.15), rgba(168, 85, 247, 0.15));
+  border: 1px solid rgba(0, 224, 255, 0.2);
+  border-bottom-right-radius: 4px;
+  color: var(--text-primary);
+}
+
+.msg.ai .msg-bubble {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-bottom-left-radius: 4px;
+}
+
+.msg-time {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 4px;
+  padding: 0 4px;
+}
+
+.msg.user .msg-time { text-align: right; }
+
+/* Strategy Card inside chat */
+.strategy-card {
+  margin-top: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border-glow);
+  background: var(--gradient-card);
+  overflow: hidden;
+}
+
+.strategy-header {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.strategy-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+}
+
+.strategy-badge {
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(34, 211, 167, 0.15);
+  color: var(--green);
+  font-weight: 600;
+}
+
+.strategy-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.2s;
+}
+
+.strategy-row:last-child { border-bottom: none; }
+.strategy-row:hover { background: rgba(0, 224, 255, 0.03); }
+
+.chain-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.chain-icon.eth { background: rgba(98, 126, 234, 0.2); color: #627eea; border: 1px solid rgba(98, 126, 234, 0.3); }
+.chain-icon.arb { background: rgba(40, 160, 240, 0.2); color: #28a0f0; border: 1px solid rgba(40, 160, 240, 0.3); }
+.chain-icon.sol { background: rgba(153, 69, 255, 0.2); color: #9945ff; border: 1px solid rgba(153, 69, 255, 0.3); }
+
+.strategy-info { flex: 1; }
+.strategy-info .name { font-size: 12.5px; font-weight: 600; }
+.strategy-info .detail { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+.strategy-apy {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--green);
+  text-shadow: 0 0 10px var(--green-glow);
+}
+
+.strategy-actions {
+  padding: 12px 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.btn-execute {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: var(--gradient-main);
+  color: var(--bg-primary);
+}
+
+.btn-execute:hover {
+  box-shadow: 0 0 30px var(--cyan-glow), 0 4px 15px rgba(0,0,0,0.3);
+  transform: translateY(-1px);
+}
+
+.btn-modify {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-glow);
+  background: transparent;
+  font-family: 'Exo 2', sans-serif;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-modify:hover {
+  border-color: var(--purple);
+  color: var(--purple);
+}
+
+/* Chat input */
+.chat-input-area {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: rgba(6, 8, 15, 0.9);
+}
+
+.chat-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--border-glow);
+  background: var(--bg-glass);
+  transition: all 0.3s;
+}
+
+.chat-input-wrapper:focus-within {
+  border-color: var(--cyan);
+  box-shadow: 0 0 20px rgba(0, 224, 255, 0.08);
+}
+
+.chat-input-wrapper input {
+  flex: 1;
+  border: none;
+  background: none;
+  font-family: 'Exo 2', sans-serif;
+  font-size: 13.5px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.chat-input-wrapper input::placeholder {
+  color: var(--text-dim);
+}
+
+.send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  background: var(--gradient-main);
+  color: var(--bg-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all 0.3s;
+  flex-shrink: 0;
+}
+
+.send-btn:hover {
+  box-shadow: 0 0 20px var(--cyan-glow);
+  transform: scale(1.05);
+}
+
+/* ======= Right Dashboard ======= */
+.dashboard {
+  overflow-y: auto;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: calc(100vh - 64px);
+}
+
+.dashboard::-webkit-scrollbar { width: 4px; }
+.dashboard::-webkit-scrollbar-track { background: transparent; }
+.dashboard::-webkit-scrollbar-thumb { background: rgba(0, 224, 255, 0.15); border-radius: 2px; }
+
+/* Stats Row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.stat-card {
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s;
+  animation: card-in 0.6s ease-out both;
+}
+
+.stat-card:nth-child(1) { animation-delay: 0.1s; }
+.stat-card:nth-child(2) { animation-delay: 0.2s; }
+.stat-card:nth-child(3) { animation-delay: 0.3s; }
+.stat-card:nth-child(4) { animation-delay: 0.4s; }
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 2px;
+  background: var(--gradient-main);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.stat-card:hover { border-color: var(--border-glow); transform: translateY(-2px); }
+.stat-card:hover::before { opacity: 1; }
+
+.stat-label {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.stat-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 26px;
+  font-weight: 700;
+  background: var(--gradient-main);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.stat-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.stat-change.up { color: var(--green); background: rgba(34, 211, 167, 0.1); }
+.stat-change.down { color: var(--red); background: rgba(244, 63, 94, 0.1); }
+
+/* Cross-chain Flow Section */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+}
+
+.section-subtitle {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+/* Active Positions */
+.positions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.position-card {
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  transition: all 0.4s;
+  position: relative;
+  overflow: hidden;
+  animation: card-in 0.6s ease-out both;
+}
+
+.position-card:nth-child(1) { animation-delay: 0.15s; }
+.position-card:nth-child(2) { animation-delay: 0.25s; }
+.position-card:nth-child(3) { animation-delay: 0.35s; }
+
+.position-card:hover {
+  border-color: var(--border-glow);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.position-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.position-chain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.position-chain-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.position-chain-icon.eth-bg { background: rgba(98, 126, 234, 0.2); color: #627eea; border: 1px solid rgba(98, 126, 234, 0.25); }
+.position-chain-icon.arb-bg { background: rgba(40, 160, 240, 0.2); color: #28a0f0; border: 1px solid rgba(40, 160, 240, 0.25); }
+.position-chain-icon.sol-bg { background: rgba(153, 69, 255, 0.2); color: #9945ff; border: 1px solid rgba(153, 69, 255, 0.25); }
+
+.position-chain-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.position-chain-protocol {
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.position-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.position-amount {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.position-usd {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.position-metrics {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.position-metric-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.position-metric-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.position-metric-value.green { color: var(--green); }
+.position-metric-value.cyan { color: var(--cyan); }
+
+/* Cross-chain Flow Visualization */
+.flow-section {
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  padding: 24px;
+  animation: card-in 0.6s ease-out both;
+  animation-delay: 0.4s;
+}
+
+.flow-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 20px 0;
+  position: relative;
+}
+
+.flow-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 2;
+}
+
+.flow-node-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 800;
+  position: relative;
+  transition: all 0.3s;
+}
+
+.flow-node-circle.source {
+  background: rgba(98, 126, 234, 0.2);
+  border: 2px solid rgba(98, 126, 234, 0.4);
+  color: #627eea;
+}
+
+.flow-node-circle.target1 {
+  background: rgba(40, 160, 240, 0.2);
+  border: 2px solid rgba(40, 160, 240, 0.4);
+  color: #28a0f0;
+}
+
+.flow-node-circle.target2 {
+  background: rgba(153, 69, 255, 0.2);
+  border: 2px solid rgba(153, 69, 255, 0.4);
+  color: #9945ff;
+}
+
+.flow-node:hover .flow-node-circle {
+  transform: scale(1.1);
+  box-shadow: 0 0 25px rgba(0, 224, 255, 0.2);
+}
+
+.flow-node-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.flow-node-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.flow-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 120px;
+  gap: 4px;
+  z-index: 1;
+}
+
+.flow-arrow-line {
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--purple));
+  position: relative;
+  border-radius: 1px;
+  overflow: visible;
+}
+
+.flow-arrow-line::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  width: 20px;
+  height: 8px;
+  background: var(--cyan);
+  border-radius: 4px;
+  box-shadow: 0 0 10px var(--cyan-glow);
+  animation: flow-particle 2s ease-in-out infinite;
+}
+
+.flow-arrow:nth-child(2) .flow-arrow-line::after { animation-delay: 0s; }
+.flow-arrow:nth-child(4) .flow-arrow-line::after { animation-delay: 0.5s; }
+.flow-arrow:nth-child(6) .flow-arrow-line::after { animation-delay: 1s; }
+
+@keyframes flow-particle {
+  0% { left: -20px; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: calc(100% + 20px); opacity: 0; }
+}
+
+.flow-arrow-label {
+  font-size: 10px;
+  color: var(--cyan-dim);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* AI Insights */
+.insights-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.insight-card {
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  transition: all 0.3s;
+  animation: card-in 0.6s ease-out both;
+  animation-delay: 0.5s;
+}
+
+.insight-card:hover {
+  border-color: var(--border-glow);
+}
+
+.insight-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.insight-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.insight-icon.risk { background: rgba(244, 63, 94, 0.12); }
+.insight-icon.opportunity { background: rgba(0, 224, 255, 0.12); }
+
+.insight-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.insight-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.insight-item:last-child { border-bottom: none; }
+
+.insight-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.insight-dot.red { background: var(--red); box-shadow: 0 0 6px rgba(244, 63, 94, 0.4); }
+.insight-dot.amber { background: var(--amber); box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+.insight-dot.green { background: var(--green); box-shadow: 0 0 6px var(--green-glow); }
+.insight-dot.cyan { background: var(--cyan); box-shadow: 0 0 6px var(--cyan-glow); }
+
+/* Typing indicator */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  animation: typing 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* Risk bar */
+.risk-bar {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.risk-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1s ease-out;
+}
+
+.risk-bar-fill.low { width: 25%; background: var(--green); box-shadow: 0 0 8px var(--green-glow); }
+.risk-bar-fill.medium { width: 55%; background: var(--amber); box-shadow: 0 0 8px rgba(245, 158, 11, 0.4); }
+</style>
+</head>
+<body>
+
+<!-- Animated particle background -->
+<canvas id="bg-canvas"></canvas>
+<div class="grid-overlay"></div>
+<div class="vignette"></div>
+
+<!-- Top Navigation -->
+<nav class="top-nav">
+  <div class="logo">
+    <div class="logo-icon">⬡</div>
+    <div>
+      <div class="logo-text">DEFI PILOT</div>
+      <div class="logo-tag">AI Cross-Chain Protocol</div>
+    </div>
+  </div>
+
+  <div class="nav-center">
+    <div class="nav-item active">Dashboard</div>
+    <div class="nav-item">Strategies</div>
+    <div class="nav-item">History</div>
+    <div class="nav-item">Analytics</div>
+  </div>
+
+  <div class="nav-right">
+    <div class="chain-selector">
+      <div class="chain-dot"></div>
+      <span>Multi-Chain</span>
+      <span style="font-size:10px;opacity:0.5">▼</span>
+    </div>
+    <button class="wallet-btn">0x7a3F...9e2D</button>
+  </div>
+</nav>
+
+<!-- Main Layout -->
+<div class="main-container">
+
+  <!-- Left: AI Chat Panel -->
+  <div class="chat-panel">
+    <div class="chat-header">
+      <div class="ai-avatar">🤖</div>
+      <div class="chat-header-info">
+        <h3>PILOT AI</h3>
+        <span>● Online — Monitoring 6 chains</span>
+      </div>
+    </div>
+
+    <div class="chat-messages">
+      <div class="msg user">
+        <div class="msg-bubble">我有 5 ETH 在以太坊主网上，帮我找全网最高收益的方案，风险要低一些</div>
+        <div class="msg-time">14:32</div>
+      </div>
+
+      <div class="msg ai">
+        <div class="msg-bubble">
+          已扫描 <span style="color:var(--cyan)">6 条链</span> 上 <span style="color:var(--cyan)">47 个协议</span>，为您找到以下最优策略：
+          <div class="strategy-card">
+            <div class="strategy-header">
+              <span class="strategy-label">RECOMMENDED STRATEGY</span>
+              <span class="strategy-badge">Low Risk</span>
+            </div>
+            <div class="strategy-row">
+              <div class="chain-icon arb">A</div>
+              <div class="strategy-info">
+                <div class="name">Aave V3 · ETH Lending</div>
+                <div class="detail">2.5 ETH → Arbitrum · 预计收益 $847/年</div>
+              </div>
+              <div class="strategy-apy">4.82%</div>
+            </div>
+            <div class="strategy-row">
+              <div class="chain-icon sol">S</div>
+              <div class="strategy-info">
+                <div class="name">Marinade · mSOL Staking</div>
+                <div class="detail">1.5 ETH → Solana (兑换SOL) · 预计收益 $620/年</div>
+              </div>
+              <div class="strategy-apy">6.34%</div>
+            </div>
+            <div class="strategy-row">
+              <div class="chain-icon eth">E</div>
+              <div class="strategy-info">
+                <div class="name">Lido · stETH</div>
+                <div class="detail">1.0 ETH 留在 Ethereum · 流动性质押</div>
+              </div>
+              <div class="strategy-apy">3.95%</div>
+            </div>
+            <div class="strategy-actions">
+              <button class="btn-execute">⚡ ONE-CLICK EXECUTE</button>
+              <button class="btn-modify">修改</button>
+            </div>
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:var(--text-secondary)">
+            综合年化 <span style="color:var(--green);font-weight:700">5.17%</span> · 风险评分 <span style="color:var(--green)">Low</span> · 预估年收益 <span style="color:var(--cyan)">$1,892</span>
+          </div>
+        </div>
+        <div class="msg-time">14:32</div>
+      </div>
+
+      <div class="msg user">
+        <div class="msg-bubble">不错，但 Solana 那部分风险会不会高？能换成 Base 链吗</div>
+        <div class="msg-time">14:33</div>
+      </div>
+
+      <div class="msg ai">
+        <div class="msg-bubble">
+          好的，已为您调整。Base 链上 Compound V3 当前 ETH 供给利率 <span style="color:var(--green)">5.12%</span>，风险更低且免跨链兑换。
+          <br><br>
+          已更新策略，点击执行即可一笔签名完成全部操作 🚀
+          <div class="typing-indicator" style="margin-top:8px">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        </div>
+        <div class="msg-time">14:33</div>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <div class="chat-input-wrapper">
+        <input type="text" placeholder="Tell Pilot AI your DeFi intent..." />
+        <button class="send-btn">↑</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Dashboard -->
+  <div class="dashboard">
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Total Value</div>
+        <div class="stat-value">$36,742</div>
+        <div class="stat-change up">▲ 12.4%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg. APY</div>
+        <div class="stat-value">5.17%</div>
+        <div class="stat-change up">▲ 0.8%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Earned (30d)</div>
+        <div class="stat-value">$482</div>
+        <div class="stat-change up">▲ 23.1%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Chains</div>
+        <div class="stat-value" style="font-size:28px">3</div>
+        <div class="stat-change up" style="background:rgba(0,224,255,0.08);color:var(--cyan)">ETH · ARB · BASE</div>
+      </div>
+    </div>
+
+    <!-- Active Positions -->
+    <div class="section-header">
+      <div>
+        <div class="section-title">ACTIVE POSITIONS</div>
+        <div class="section-subtitle">AI-managed cross-chain portfolio</div>
+      </div>
+    </div>
+
+    <div class="positions-grid">
+      <div class="position-card">
+        <div class="position-top">
+          <div class="position-chain">
+            <div class="position-chain-icon arb-bg">A</div>
+            <div>
+              <div class="position-chain-name">Arbitrum</div>
+              <div class="position-chain-protocol">Aave V3</div>
+            </div>
+          </div>
+          <div class="position-status"></div>
+        </div>
+        <div class="position-amount">2.50 ETH</div>
+        <div class="position-usd">≈ $9,125.00</div>
+        <div class="position-metrics">
+          <div>
+            <div class="position-metric-label">APY</div>
+            <div class="position-metric-value green">4.82%</div>
+          </div>
+          <div>
+            <div class="position-metric-label">Earned</div>
+            <div class="position-metric-value cyan">$187</div>
+          </div>
+          <div>
+            <div class="position-metric-label">Risk</div>
+            <div class="position-metric-value green">Low</div>
+            <div class="risk-bar"><div class="risk-bar-fill low"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="position-card">
+        <div class="position-top">
+          <div class="position-chain">
+            <div class="position-chain-icon" style="background:rgba(0,82,255,0.2);color:#0052ff;border:1px solid rgba(0,82,255,0.25);">B</div>
+            <div>
+              <div class="position-chain-name">Base</div>
+              <div class="position-chain-protocol">Compound V3</div>
+            </div>
+          </div>
+          <div class="position-status"></div>
+        </div>
+        <div class="position-amount">1.50 ETH</div>
+        <div class="position-usd">≈ $5,475.00</div>
+        <div class="position-metrics">
+          <div>
+            <div class="position-metric-label">APY</div>
+            <div class="position-metric-value green">5.12%</div>
+          </div>
+          <div>
+            <div class="position-metric-label">Earned</div>
+            <div class="position-metric-value cyan">$142</div>
+          </div>
+          <div>
+            <div class="position-metric-label">Risk</div>
+            <div class="position-metric-value green">Low</div>
+            <div class="risk-bar"><div class="risk-bar-fill low"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="position-card">
+        <div class="position-top">
+          <div class="position-chain">
+            <div class="position-chain-icon eth-bg">E</div>
+            <div>
+              <div class="position-chain-name">Ethereum</div>
+              <div class="position-chain-protocol">Lido · stETH</div>
+            </div>
+          </div>
+          <div class="position-status"></div>
+        </div>
+        <div class="position-amount">1.00 ETH</div>
+        <div class="position-usd">≈ $3,650.00</div>
+        <div class="position-metrics">
+          <div>
+            <div class="position-metric-label">APY</div>
+            <div class="position-metric-value green">3.95%</div>
+          </div>
+          <div>
+            <div class="position-metric-label">Earned</div>
+            <div class="position-metric-value cyan">$153</div>
+          </div>
+          <div>
+            <div class="position-metric-label">Risk</div>
+            <div class="position-metric-value green">Low</div>
+            <div class="risk-bar"><div class="risk-bar-fill low"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cross-chain Flow Visualization -->
+    <div class="flow-section">
+      <div class="section-header" style="margin-bottom:8px;">
+        <div>
+          <div class="section-title">CROSS-CHAIN FLOW</div>
+          <div class="section-subtitle">Live transaction routing</div>
+        </div>
+        <div style="font-size:11px;color:var(--green);display:flex;align-items:center;gap:6px;">
+          <div class="chain-dot"></div> All bridges healthy
+        </div>
+      </div>
+      <div class="flow-visual">
+        <div class="flow-node">
+          <div class="flow-node-circle source">E</div>
+          <div class="flow-node-label">Ethereum</div>
+          <div class="flow-node-sub">5.0 ETH</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-label">2.5 ETH via LayerZero</div>
+          <div class="flow-arrow-line"></div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-node-circle target1">A</div>
+          <div class="flow-node-label">Arbitrum</div>
+          <div class="flow-node-sub">Aave V3</div>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-label">1.5 ETH via Base Bridge</div>
+          <div class="flow-arrow-line"></div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-node-circle" style="background:rgba(0,82,255,0.2);border:2px solid rgba(0,82,255,0.4);color:#0052ff;">B</div>
+          <div class="flow-node-label">Base</div>
+          <div class="flow-node-sub">Compound V3</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Insights -->
+    <div class="insights-row">
+      <div class="insight-card">
+        <div class="insight-header">
+          <div class="insight-icon risk">⚠️</div>
+          <div class="insight-title">Risk Monitor</div>
+        </div>
+        <div class="insight-item">
+          <div class="insight-dot green"></div>
+          <span>Aave V3 健康度: 2.41 — 安全</span>
+        </div>
+        <div class="insight-item">
+          <div class="insight-dot green"></div>
+          <span>stETH/ETH 脱锚风险: 0.02% — 极低</span>
+        </div>
+        <div class="insight-item">
+          <div class="insight-dot amber"></div>
+          <span>ETH 价格 24h 波动: -3.2% — 关注中</span>
+        </div>
+        <div class="insight-item">
+          <div class="insight-dot green"></div>
+          <span>智能合约审计状态: 全部已审计 ✓</span>
+        </div>
+      </div>
+
+      <div class="insight-card">
+        <div class="insight-header">
+          <div class="insight-icon opportunity">💡</div>
+          <div class="insight-title">AI Opportunities</div>
+        </div>
+        <div class="insight-item">
+          <div class="insight-dot cyan"></div>
+          <span>Scroll 链 Aave 利率飙升至 <b style="color:var(--green)">7.2%</b>，建议调仓</span>
+        </div>
+        <div class="insight-item">
+          <div class="insight-dot cyan"></div>
+          <span>检测到 Arbitrum ARB 空投快照，建议保持仓位</span>
+        </div>
+        <div class="insight-item">
+          <div class="insight-dot green"></div>
+          <span>Compound V3 USDC 池 APY 上升 0.4%</span>
+        </div>
+        <div class="insight-item">
+          <div class="insight-dot cyan"></div>
+          <span>发现 Pendle PT-stETH 套利机会: <b style="color:var(--green)">+1.8%</b></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('bg-canvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+class Particle {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    this.x = Math.random() * canvas.width;
+    this.y = Math.random() * canvas.height;
+    this.size = Math.random() * 1.5 + 0.5;
+    this.speedX = (Math.random() - 0.5) * 0.3;
+    this.speedY = (Math.random() - 0.5) * 0.3;
+    this.opacity = Math.random() * 0.5 + 0.1;
+    this.hue = Math.random() > 0.5 ? 190 : 270;
+  }
+  update() {
+    this.x += this.speedX;
+    this.y += this.speedY;
+    if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+      this.reset();
+    }
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${this.hue}, 100%, 70%, ${this.opacity})`;
+    ctx.fill();
+  }
+}
+
+const particles = Array.from({ length: 80 }, () => new Particle());
+
+function drawConnections() {
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 150) {
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.strokeStyle = `rgba(0, 224, 255, ${0.06 * (1 - dist / 150)})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles.forEach(p => { p.update(); p.draw(); });
+  drawConnections();
+  requestAnimationFrame(animate);
+}
+animate();
+
+// Simulate chat interaction
+const input = document.querySelector('.chat-input-wrapper input');
+const sendBtn = document.querySelector('.send-btn');
+
+function simulateChat() {
+  const val = input.value.trim();
+  if (!val) return;
+
+  const messages = document.querySelector('.chat-messages');
+  const userMsg = document.createElement('div');
+  userMsg.className = 'msg user';
+  userMsg.innerHTML = `<div class="msg-bubble">${val}</div><div class="msg-time">${new Date().toLocaleTimeString('en', {hour:'2-digit',minute:'2-digit',hour12:false})}</div>`;
+  messages.appendChild(userMsg);
+
+  input.value = '';
+
+  setTimeout(() => {
+    const aiMsg = document.createElement('div');
+    aiMsg.className = 'msg ai';
+    aiMsg.innerHTML = `<div class="msg-bubble">收到！正在分析您的请求，扫描多链协议数据中...<div class="typing-indicator" style="margin-top:8px"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div><div class="msg-time">${new Date().toLocaleTimeString('en', {hour:'2-digit',minute:'2-digit',hour12:false})}</div>`;
+    messages.appendChild(aiMsg);
+    messages.scrollTop = messages.scrollHeight;
+  }, 600);
+
+  messages.scrollTop = messages.scrollHeight;
+}
+
+sendBtn.addEventListener('click', simulateChat);
+input.addEventListener('keydown', e => { if (e.key === 'Enter') simulateChat(); });
+</script>
+
+</body>
+</html>
