@@ -56,6 +56,9 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
     /// @notice 所有用户 ethBalance 的总和，用于健康度监控
     uint256 public totalEthBalance;
 
+    /// @notice 各 token 在所有 active position 中的 receivedAmount 总和（用于比例赎回计算）
+    mapping(address => uint256) public totalActiveReceived;
+
     event Deposited(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event StrategyExecuted(address indexed user, address protocol, uint256 amount);
@@ -175,22 +178,41 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
             active: true
         });
 
+        totalActiveReceived[aToken] += received;
+
         emit StrategyExecuted(msg.sender, protocol, msg.value);
     }
 
     /**
-     * @notice 赎回指定持仓：将全部 aToken 余额（含利息）→ Adapter → ETH → 记入用户 ethBalance
+     * @notice 赎回指定持仓：按比例赎回 aToken（含利息份额）→ Adapter → ETH → 记入用户 ethBalance
      * @param positionId 待赎回的持仓 ID
-     * @dev aToken 是 rebasing token，余额随时间增长；赎回当前全部余额而非仅初始数量。
-     *      对于同一用户多个持仓共用同一 receivedToken 的场景，当前实现会赎回 Vault 持有的全部 aToken，
-     *      这在多持仓并发赎回时可能导致先到先得。未来可改用比例赎回机制。
+     * @dev aToken 是 rebasing token，余额随时间增长。
+     *      使用 totalActiveReceived 追踪各 token 的活跃份额总和，
+     *      赎回量 = pos.receivedAmount / totalActiveReceived * currentBalance，
+     *      确保多持仓场景下利息按初始存入比例公平分配，不存在先到先得问题。
+     *      最后一笔持仓赎回时自动拿走剩余全部余额（避免粉尘残留）。
      */
     function withdrawFromProtocol(uint256 positionId) external nonReentrant whenNotPaused {
         Position storage pos = _users[msg.sender].positions[positionId];
         require(pos.active, "Not active");
+        require(pos.receivedToken != address(0), "No received token");
 
-        uint256 redeemAmount = IERC20(pos.receivedToken).balanceOf(address(this));
-        require(redeemAmount > 0, "No tokens to redeem");
+        uint256 currentBalance = IERC20(pos.receivedToken).balanceOf(address(this));
+        require(currentBalance > 0, "No tokens to redeem");
+
+        uint256 tracked = totalActiveReceived[pos.receivedToken];
+        uint256 redeemAmount;
+
+        if (tracked <= pos.receivedAmount) {
+            redeemAmount = currentBalance;
+        } else {
+            redeemAmount = pos.receivedAmount * currentBalance / tracked;
+            if (redeemAmount > currentBalance) redeemAmount = currentBalance;
+        }
+
+        require(redeemAmount > 0, "Nothing to redeem");
+
+        totalActiveReceived[pos.receivedToken] -= pos.receivedAmount;
 
         IERC20(pos.receivedToken).safeTransfer(pos.protocol, redeemAmount);
 
