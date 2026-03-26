@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react'
-import { useAccount, useChainId, useWriteContract } from 'wagmi'
+import { useAccount, useChainId, useWriteContract, useReadContract } from 'wagmi'
+import { formatEther } from 'viem'
 import { useChatStore } from '@/stores/chatStore'
 import { usePortfolioStore } from '@/stores/portfolioStore'
+import { getContracts } from '@/utils/contracts'
 import type { TxParams } from '@/services/ai'
 import VaultAbi from '@/abi/DeFiPilotVault.json'
 
@@ -26,6 +28,15 @@ export function useExecuteStrategy() {
   const addMessage = useChatStore((s) => s.addMessage)
   const refreshPortfolio = usePortfolioStore((s) => s.refreshPortfolio)
 
+  const contracts = getContracts(chainId)
+  const { data: vaultBalance } = useReadContract({
+    address: contracts.vault,
+    abi: VaultAbi,
+    functionName: 'getUserBalance',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  })
+
   const { writeContractAsync } = useWriteContract()
 
   const execute = useCallback(
@@ -42,6 +53,22 @@ export function useExecuteStrategy() {
       }
 
       const effectiveChainId = txParams.chainId || chainId
+
+      if (txParams.mode === 'solver' && txParams.intents?.length) {
+        const totalRequired = txParams.intents.reduce(
+          (sum, i) => sum + BigInt(i.amount || '0'), 0n
+        )
+        const currentBalance = (vaultBalance as bigint) ?? 0n
+        if (totalRequired > currentBalance) {
+          const requiredETH = formatEther(totalRequired)
+          const currentETH = formatEther(currentBalance)
+          addMessage({
+            role: 'ai',
+            content: `Vault 余额不足：策略需要 ${requiredETH} ETH，当前 Vault 余额仅 ${currentETH} ETH。请先通过 deposit 存入足够的 ETH 后再执行。`,
+          })
+          return
+        }
+      }
 
       setStatus('depositing')
 
@@ -119,7 +146,7 @@ export function useExecuteStrategy() {
         setTimeout(() => setStatus('idle'), 3000)
       }
     },
-    [isConnected, address, chainId, pendingTxParams, writeContractAsync, setPendingTxParams, addMessage, refreshPortfolio]
+    [isConnected, address, chainId, pendingTxParams, writeContractAsync, setPendingTxParams, addMessage, refreshPortfolio, vaultBalance]
   )
 
   return {
