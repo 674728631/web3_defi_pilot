@@ -31,57 +31,21 @@ interface PortfolioState {
   refreshPortfolio: (address: string, chainId: number) => Promise<void>
 }
 
-const MOCK_POSITIONS: Position[] = [
-  {
-    id: '1',
-    chain: 'arbitrum',
-    protocol: 'Aave V3',
-    asset: 'ETH',
-    amount: 2.5,
-    usdValue: 9125,
-    apy: 4.82,
-    earned: 187,
-    riskLevel: 'Low',
-  },
-  {
-    id: '2',
-    chain: 'base',
-    protocol: 'Compound V3',
-    asset: 'ETH',
-    amount: 1.5,
-    usdValue: 5475,
-    apy: 5.12,
-    earned: 142,
-    riskLevel: 'Low',
-  },
-  {
-    id: '3',
-    chain: 'ethereum',
-    protocol: 'Lido · stETH',
-    asset: 'ETH',
-    amount: 1.0,
-    usdValue: 3650,
-    apy: 3.95,
-    earned: 153,
-    riskLevel: 'Low',
-  },
-]
-
-const MOCK_STATS: PortfolioStats = {
-  totalValue: 36742,
-  totalValueChange: 12.4,
-  avgApy: 5.17,
-  apyChange: 0.8,
-  earned30d: 482,
-  earnedChange: 23.1,
-  activeChains: ['ETH', 'ARB', 'BASE'],
+const EMPTY_STATS: PortfolioStats = {
+  totalValue: 0,
+  totalValueChange: 0,
+  avgApy: 0,
+  apyChange: 0,
+  earned30d: 0,
+  earnedChange: 0,
+  activeChains: [],
 }
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'
 
 export const usePortfolioStore = create<PortfolioState>((set, get) => ({
-  positions: MOCK_POSITIONS,
-  stats: MOCK_STATS,
+  positions: [],
+  stats: EMPTY_STATS,
   isRefreshing: false,
   setPositions: (positions) => set({ positions }),
   setStats: (stats) => set({ stats }),
