@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"math/big"
 	"strings"
 
@@ -29,10 +30,10 @@ type IntentParam struct {
 }
 
 // EncodeStrategy converts a strategy into ready-to-sign transaction parameters
-func EncodeStrategy(strategy *Strategy, userAddr string, chainID int64) *TxParams {
+func EncodeStrategy(strategy *Strategy, userAddr string, chainID int64) (*TxParams, error) {
 	chainCfg := config.GetChain(chainID)
 	if chainCfg == nil || strategy == nil || len(strategy.Items) == 0 {
-		return nil
+		return nil, fmt.Errorf("invalid strategy or unsupported chain %d", chainID)
 	}
 
 	item := strategy.Items[0]
@@ -40,7 +41,14 @@ func EncodeStrategy(strategy *Strategy, userAddr string, chainID int64) *TxParam
 
 	totalWei := big.NewInt(0)
 	for _, it := range strategy.Items {
-		totalWei.Add(totalWei, parseETHAmount(it.Amount))
+		wei, err := parseETHAmount(it.Amount)
+		if err != nil {
+			return nil, fmt.Errorf("invalid amount %q: %w", it.Amount, err)
+		}
+		if wei.Sign() <= 0 {
+			return nil, fmt.Errorf("amount must be positive, got %q", it.Amount)
+		}
+		totalWei.Add(totalWei, wei)
 	}
 
 	// Path 1: Adapter available → depositAndExecute(protocol) on Vault
@@ -54,7 +62,7 @@ func EncodeStrategy(strategy *Strategy, userAddr string, chainID int64) *TxParam
 			Args:         []interface{}{adapterAddr},
 			Value:        totalWei.String(),
 			ChainID:      chainID,
-		}
+		}, nil
 	}
 
 	// Path 2: No adapter → direct Vault deposit (user deposits ETH into vault)
@@ -66,17 +74,23 @@ func EncodeStrategy(strategy *Strategy, userAddr string, chainID int64) *TxParam
 			Args:         []interface{}{},
 			Value:        totalWei.String(),
 			ChainID:      chainID,
-		}
+		}, nil
 	}
 
 	// Path 3: Solver path (EIP-712 signed intent)
 	return encodeSolverPath(strategy, userAddr, chainID, chainCfg)
 }
 
-func encodeSolverPath(strategy *Strategy, userAddr string, chainID int64, chainCfg *config.ChainConfig) *TxParams {
+func encodeSolverPath(strategy *Strategy, userAddr string, chainID int64, chainCfg *config.ChainConfig) (*TxParams, error) {
 	var intents []IntentParam
 	for _, item := range strategy.Items {
-		amountWei := parseETHAmount(item.Amount)
+		amountWei, err := parseETHAmount(item.Amount)
+		if err != nil {
+			return nil, fmt.Errorf("invalid amount %q in solver path: %w", item.Amount, err)
+		}
+		if amountWei.Sign() <= 0 {
+			return nil, fmt.Errorf("solver intent amount must be positive, got %q", item.Amount)
+		}
 		intents = append(intents, IntentParam{
 			Protocol: chainCfg.Adapter,
 			Amount:   amountWei.String(),
@@ -102,23 +116,27 @@ func encodeSolverPath(strategy *Strategy, userAddr string, chainID int64, chainC
 			},
 		},
 		Intents: intents,
-	}
+	}, nil
 }
 
-func parseETHAmount(amountStr string) *big.Int {
+func parseETHAmount(amountStr string) (*big.Int, error) {
 	amountStr = strings.TrimSpace(amountStr)
 	amountStr = strings.TrimSuffix(amountStr, " ETH")
 	amountStr = strings.TrimSuffix(amountStr, " eth")
 
+	if amountStr == "" {
+		return nil, fmt.Errorf("empty amount string")
+	}
+
 	val := new(big.Float)
 	if _, ok := val.SetString(amountStr); !ok {
-		return big.NewInt(0)
+		return nil, fmt.Errorf("cannot parse %q as number", amountStr)
 	}
 
 	weiPerETH := new(big.Float).SetFloat64(1e18)
 	wei := new(big.Float).Mul(val, weiPerETH)
 
 	result, _ := wei.Int(nil)
-	return result
+	return result, nil
 }
 

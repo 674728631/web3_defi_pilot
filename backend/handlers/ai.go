@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"defi-pilot-backend/services"
@@ -54,7 +55,13 @@ func HandleChat(c *gin.Context) {
 
 	var txParams *services.TxParams
 	if aiResp.Strategy != nil && req.UserAddress != "" && req.ChainID > 0 {
-		txParams = services.EncodeStrategy(aiResp.Strategy, req.UserAddress, req.ChainID)
+		encoded, err := services.EncodeStrategy(aiResp.Strategy, req.UserAddress, req.ChainID)
+		if err != nil {
+			log.Printf("[AI] strategy encode failed: %v", err)
+			aiResp.Text += "\n\n⚠️ 策略生成成功但参数编码失败: " + err.Error()
+		} else {
+			txParams = encoded
+		}
 	}
 
 	c.JSON(http.StatusOK, ChatResponse{
