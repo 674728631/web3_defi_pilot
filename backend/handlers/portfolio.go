@@ -55,7 +55,11 @@ const ethUsdPrice = 3650.0
 func HandlePortfolio(c *gin.Context) {
 	address := c.Query("address")
 	chainIDStr := c.DefaultQuery("chainId", "11155111")
-	chainID, _ := strconv.ParseInt(chainIDStr, 10, 64)
+	chainID, err := strconv.ParseInt(chainIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid chainId"})
+		return
+	}
 
 	if address == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "address required"})

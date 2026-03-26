@@ -16,7 +16,11 @@ import (
 func HandleTxStatus(c *gin.Context) {
 	hash := c.Param("hash")
 	chainIDStr := c.DefaultQuery("chainId", "11155111")
-	chainID, _ := strconv.ParseInt(chainIDStr, 10, 64)
+	chainID, err := strconv.ParseInt(chainIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid chainId"})
+		return
+	}
 
 	chainCfg := config.GetChain(chainID)
 	if chainCfg == nil {

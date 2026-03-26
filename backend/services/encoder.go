@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	"defi-pilot-backend/config"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 // TxParams describes a ready-to-sign transaction for the frontend
