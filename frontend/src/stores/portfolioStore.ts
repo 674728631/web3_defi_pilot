@@ -59,7 +59,8 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
       const data = await res.json()
       const vaultETH = parseFloat(data.vaultEth || '0')
       const walletETH = parseFloat(data.walletEth || '0')
-      const totalUsd = data.totalUsd || (walletETH + vaultETH) * 3650
+      const ethPrice = data.ethPrice || 3650
+      const totalUsd = data.totalUsd || (walletETH + vaultETH) * ethPrice
 
       const positions: Position[] = []
 
@@ -70,7 +71,7 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
           protocol: 'DeFi Pilot Vault',
           asset: 'ETH',
           amount: vaultETH,
-          usdValue: vaultETH * 3650,
+          usdValue: vaultETH * ethPrice,
           apy: 0,
           earned: 0,
           riskLevel: 'Low',
@@ -87,9 +88,9 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
             protocol: p.protocolName || 'Unknown',
             asset: p.asset || 'ETH',
             amount,
-            usdValue: amount * 3650,
+            usdValue: amount * ethPrice,
             apy: p.apy || 0,
-            earned: Math.round(amount * 3650 * (p.apy || 0) / 100 / 12),
+            earned: Math.round(amount * ethPrice * (p.apy || 0) / 100 / 12),
             riskLevel: (p.riskLevel || 'Medium') as 'Low' | 'Medium' | 'High',
           })
         }

@@ -37,6 +37,10 @@ func main() {
 		api.GET("/vault/balance", handlers.HandleVaultBalance)
 		api.GET("/portfolio", handlers.HandlePortfolio)
 		api.GET("/opportunities", handlers.HandleOpportunities)
+		api.GET("/price/eth", func(c *gin.Context) {
+			price := services.GetETHPrice()
+			c.JSON(200, gin.H{"symbol": "ETH", "usd": price})
+		})
 	}
 
 	// Health check endpoint

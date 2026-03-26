@@ -41,6 +41,7 @@ type PortfolioResponse struct {
 	VaultETH       string             `json:"vaultEth"`
 	VaultWei       string             `json:"vaultWei"`
 	TotalUSD       float64            `json:"totalUsd"`
+	ETHPrice       float64            `json:"ethPrice"`
 	PositionCount  int                `json:"positionCount"`
 	Positions      []PositionResponse `json:"positions"`
 	Healthy        bool               `json:"healthy"`
@@ -50,7 +51,9 @@ type PortfolioResponse struct {
 	QueriedAt      string             `json:"queriedAt"`
 }
 
-const ethUsdPrice = 3650.0
+func getETHUsdPrice() float64 {
+	return services.GetETHPrice()
+}
 
 func HandlePortfolio(c *gin.Context) {
 	address := c.Query("address")
@@ -132,7 +135,8 @@ func HandlePortfolio(c *gin.Context) {
 	}
 
 	vaultETH := weiToETHFloat(vaultBalance)
-	totalUSD := (walletETH + vaultETH) * ethUsdPrice
+	ethPrice := getETHUsdPrice()
+	totalUSD := (walletETH + vaultETH) * ethPrice
 
 	if len(positions) > 0 {
 		totalWeight := 0.0
@@ -160,7 +164,7 @@ func HandlePortfolio(c *gin.Context) {
 		activeChains = append(activeChains, chainShort)
 	}
 
-	earned30d := vaultETH * ethUsdPrice * avgAPY / 100.0 / 12.0
+	earned30d := vaultETH * ethPrice * avgAPY / 100.0 / 12.0
 
 	resp := PortfolioResponse{
 		ChainID:       chainID,
@@ -170,6 +174,7 @@ func HandlePortfolio(c *gin.Context) {
 		VaultETH:      formatETH(vaultETH),
 		VaultWei:      vaultBalance.String(),
 		TotalUSD:      totalUSD,
+		ETHPrice:      ethPrice,
 		PositionCount: posCount,
 		Positions:     positions,
 		Healthy:       healthy,
