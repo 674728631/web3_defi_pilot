@@ -87,17 +87,23 @@ export function useExecuteStrategy() {
           setPendingTxParams(null)
 
           const explorerUrl = getExplorerUrl(effectiveChainId, hash)
-          const confirmed = await waitForTx(hash, effectiveChainId)
-          if (confirmed) {
+          const txResult = await waitForTx(hash, effectiveChainId)
+          if (txResult === 'success') {
             setStatus('success')
             addMessage({
               role: 'ai',
               content: `交易已确认！[查看区块浏览器](${explorerUrl})`,
             })
             refreshPortfolio(address, effectiveChainId)
+          } else if (txResult === 'timeout') {
+            setStatus('idle')
+            addMessage({
+              role: 'ai',
+              content: `交易仍在等待确认中，可能因网络拥堵导致确认较慢。请稍后在区块浏览器查看最终状态：[查看交易](${explorerUrl})`,
+            })
           } else {
             setStatus('error')
-            addMessage({ role: 'ai', content: '交易失败，请检查 Gas 或余额后重试。' })
+            addMessage({ role: 'ai', content: `交易失败，请检查 Gas 或余额后重试。[查看详情](${explorerUrl})` })
           }
         } else if (txParams.mode === 'solver') {
           setStatus('executing')
@@ -124,17 +130,23 @@ export function useExecuteStrategy() {
           setPendingTxParams(null)
 
           const explorerUrl = getExplorerUrl(effectiveChainId, result.txHash)
-          const confirmed = await waitForTx(result.txHash, effectiveChainId)
-          if (confirmed) {
+          const txResult = await waitForTx(result.txHash, effectiveChainId)
+          if (txResult === 'success') {
             setStatus('success')
             addMessage({
               role: 'ai',
               content: `Solver 交易已确认！[查看区块浏览器](${explorerUrl})`,
             })
             refreshPortfolio(address, effectiveChainId)
+          } else if (txResult === 'timeout') {
+            setStatus('idle')
+            addMessage({
+              role: 'ai',
+              content: `Solver 交易仍在等待确认中，请稍后在区块浏览器查看：[查看交易](${explorerUrl})`,
+            })
           } else {
             setStatus('error')
-            addMessage({ role: 'ai', content: 'Solver 交易失败，请重试。' })
+            addMessage({ role: 'ai', content: `Solver 交易失败，请重试。[查看详情](${explorerUrl})` })
           }
         }
 
@@ -164,16 +176,18 @@ export function useExecuteStrategy() {
   }
 }
 
-async function waitForTx(hash: string, chainId: number): Promise<boolean> {
+type TxResult = 'success' | 'failed' | 'timeout'
+
+async function waitForTx(hash: string, chainId: number): Promise<TxResult> {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 45; i++) {
     await new Promise((r) => setTimeout(r, 2000))
     try {
       const res = await fetch(`${BACKEND_URL}/api/tx/${hash}?chainId=${chainId}`)
       const data = await res.json()
-      if (data.status === 'success') return true
-      if (data.status === 'failed') return false
+      if (data.status === 'success') return 'success'
+      if (data.status === 'failed') return 'failed'
     } catch { /* continue polling */ }
   }
-  return false
+  return 'timeout'
 }
