@@ -114,7 +114,9 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
 
     /**
      * @notice 执行 DeFi 策略（Solver/Executor 路径）
-     * @dev 从用户 ethBalance 扣款并转发到白名单协议
+     * @dev 从用户 ethBalance 扣款并转发到白名单协议。
+     *      自动检测协议是否为 AaveV3Adapter（实现 aWETH()），
+     *      若是则追踪 aToken 回流用于后续 withdrawFromProtocol 赎回。
      */
     function executeStrategy(
         address user,
@@ -129,16 +131,34 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
         userInfo.ethBalance -= amount;
         totalEthBalance -= amount;
 
+        address rToken;
+        uint256 rAmount;
+        uint256 balBefore;
+
+        if (protocol.code.length > 0) {
+            try IAaveV3Adapter(protocol).aWETH() returns (address aToken) {
+                rToken = aToken;
+                balBefore = IERC20(aToken).balanceOf(address(this));
+            } catch {}
+        }
+
         (bool success, ) = protocol.call{value: amount}(data);
         require(success, "Strategy execution failed");
+
+        if (rToken != address(0)) {
+            rAmount = IERC20(rToken).balanceOf(address(this)) - balBefore;
+            if (rAmount > 0) {
+                totalActiveReceived[rToken] += rAmount;
+            }
+        }
 
         uint256 posId = userInfo.positionCount++;
         userInfo.positions[posId] = Position({
             protocol: protocol,
             asset: address(0),
             amount: amount,
-            receivedToken: address(0),
-            receivedAmount: 0,
+            receivedToken: rToken,
+            receivedAmount: rAmount,
             timestamp: block.timestamp,
             active: true
         });
