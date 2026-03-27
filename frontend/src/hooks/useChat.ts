@@ -4,6 +4,19 @@ import { useChatStore } from '@/stores/chatStore'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { sendChatMessage } from '@/services/ai'
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'
+
+async function fetchETHPrice(): Promise<number> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/price/eth`)
+    if (res.ok) {
+      const data = await res.json()
+      return data.usd || 2000
+    }
+  } catch { /* fallback */ }
+  return 2000
+}
+
 export function useChat() {
   const { addMessage, setLoading, setCurrentStrategy } = useChatStore()
   const messages = useChatStore((s) => s.messages)
@@ -19,10 +32,12 @@ export function useChat() {
       setLoading(true)
 
       try {
-        const history = messages.map((m) => ({
-          role: m.role === 'ai' ? 'assistant' : m.role,
-          content: m.content,
-        }))
+        const history = messages
+          .filter((m) => !m.isSeed)
+          .map((m) => ({
+            role: m.role === 'ai' ? 'assistant' : m.role,
+            content: m.content,
+          }))
         history.push({ role: 'user', content })
 
         const response = await sendChatMessage(
@@ -44,15 +59,17 @@ export function useChat() {
             setPendingTxParams(response.txParams)
           }
 
+          const ethPrice = await fetchETHPrice()
+
           const newPositions = response.strategy.items.map((item, i) => ({
             id: String(i + 1),
             chain: item.chain,
             protocol: item.protocol,
             asset: item.amount.split(' ').pop() || 'ETH',
             amount: parseFloat(item.amount),
-            usdValue: parseFloat(item.amount) * 3650,
+            usdValue: parseFloat(item.amount) * ethPrice,
             apy: item.apy,
-            earned: Math.round(parseFloat(item.amount) * 3650 * item.apy / 100 / 12),
+            earned: Math.round(parseFloat(item.amount) * ethPrice * item.apy / 100 / 12),
             riskLevel: response.strategy!.riskLevel,
           }))
           setPositions(newPositions)

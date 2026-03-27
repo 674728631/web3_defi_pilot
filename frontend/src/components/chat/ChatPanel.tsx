@@ -24,7 +24,13 @@ export default function ChatPanel() {
     if (draftInput) {
       setInput(draftInput)
       setDraftInput('')
-      setTimeout(() => inputRef.current?.focus(), 50)
+      setTimeout(() => {
+        const el = inputRef.current
+        if (el) {
+          el.focus()
+          el.setSelectionRange(el.value.length, el.value.length)
+        }
+      }, 50)
     }
   }, [draftInput, setDraftInput])
 

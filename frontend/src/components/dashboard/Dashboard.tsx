@@ -63,25 +63,48 @@ export default function Dashboard() {
               <span className="hover:text-gray-400 cursor-pointer transition-colors">Discord</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-gray-600">{t('footer.supportedChains')}</span>
-            <div className="flex gap-1.5">
-              {[
-                { letter: 'E', bg: 'rgba(59,130,246,0.2)', color: '#3b82f6' },
-                { letter: 'A', bg: 'rgba(34,211,238,0.2)', color: '#22d3ee' },
-                { letter: 'O', bg: 'rgba(239,68,68,0.2)', color: '#ef4444' },
-                { letter: 'B', bg: 'rgba(16,185,129,0.2)', color: '#10b981' },
-                { letter: 'P', bg: 'rgba(168,85,247,0.2)', color: '#a855f7' },
-                { letter: 'S', bg: 'rgba(234,179,8,0.2)', color: '#eab308' },
-              ].map((c) => (
-                <div
-                  key={c.letter}
-                  className="w-5 h-5 rounded-full flex items-center justify-center"
-                  style={{ background: c.bg }}
-                >
-                  <span className="text-[8px] font-bold" style={{ color: c.color }}>{c.letter}</span>
-                </div>
-              ))}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600">{t('footer.supportedChains')}</span>
+              <div className="flex gap-1.5">
+                {[
+                  { letter: 'E', name: 'Ethereum', bg: 'rgba(59,130,246,0.2)', color: '#3b82f6' },
+                  { letter: 'A', name: 'Arbitrum', bg: 'rgba(34,211,238,0.2)', color: '#22d3ee' },
+                  { letter: 'O', name: 'Optimism', bg: 'rgba(239,68,68,0.2)', color: '#ef4444' },
+                  { letter: 'B', name: 'Base', bg: 'rgba(16,185,129,0.2)', color: '#10b981' },
+                  { letter: 'P', name: 'Polygon', bg: 'rgba(168,85,247,0.2)', color: '#a855f7' },
+                  { letter: 'S', name: 'Solana', bg: 'rgba(234,179,8,0.2)', color: '#eab308' },
+                ].map((c) => (
+                  <div
+                    key={c.letter}
+                    className="w-5 h-5 rounded-full flex items-center justify-center cursor-pointer"
+                    style={{ background: c.bg }}
+                    title={c.name}
+                  >
+                    <span className="text-[8px] font-bold" style={{ color: c.color }}>{c.letter}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600">Protocols:</span>
+              <div className="flex gap-1.5">
+                {[
+                  { letter: 'Av', name: 'Aave V3', bg: 'rgba(139,92,246,0.2)', color: '#8b5cf6' },
+                  { letter: 'Co', name: 'Compound V3', bg: 'rgba(16,185,129,0.2)', color: '#10b981' },
+                  { letter: 'Li', name: 'Lido', bg: 'rgba(59,130,246,0.2)', color: '#3b82f6' },
+                  { letter: 'Gx', name: 'GMX', bg: 'rgba(34,211,238,0.2)', color: '#22d3ee' },
+                ].map((c) => (
+                  <div
+                    key={c.letter}
+                    className="h-5 px-1.5 rounded-full flex items-center justify-center cursor-pointer"
+                    style={{ background: c.bg }}
+                    title={c.name}
+                  >
+                    <span className="text-[8px] font-bold" style={{ color: c.color }}>{c.letter}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

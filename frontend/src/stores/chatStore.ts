@@ -23,6 +23,7 @@ export interface ChatMessage {
   content: string
   timestamp: Date
   strategy?: Strategy
+  isSeed?: boolean
 }
 
 interface ChatState {
@@ -32,6 +33,7 @@ interface ChatState {
   pendingTxParams: TxParams | null
   draftInput: string
   addMessage: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
+  clearMessages: () => void
   setLoading: (v: boolean) => void
   setCurrentStrategy: (s: Strategy | null) => void
   setPendingTxParams: (p: TxParams | null) => void
@@ -51,6 +53,7 @@ export const useChatStore = create<ChatState>((set) => ({
         { ...msg, id: crypto.randomUUID(), timestamp: new Date() },
       ],
     })),
+  clearMessages: () => set({ messages: [], currentStrategy: null, pendingTxParams: null }),
   setLoading: (isLoading) => set({ isLoading }),
   setCurrentStrategy: (currentStrategy) => set({ currentStrategy }),
   setPendingTxParams: (pendingTxParams) => set({ pendingTxParams }),

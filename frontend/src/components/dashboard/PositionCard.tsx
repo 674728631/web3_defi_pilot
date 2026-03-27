@@ -20,11 +20,11 @@ const PROTOCOL_ICONS: Record<string, { emoji: string; gradient: string }> = {
 
 export default function PositionCard({ position, index }: Props) {
   const t = useT()
-  const { withdrawFromVault, status: withdrawStatus } = useWithdraw()
+  const { withdrawFromVault, status: withdrawStatus, isProcessing } = useWithdraw()
   const iconConfig = PROTOCOL_ICONS[position.protocol] ?? { emoji: '💎', gradient: 'from-cyber-cyan to-cyber-purple' }
   const isHighlight = index === 0
   const isVaultPosition = position.id === 'vault-eth'
-  const isWithdrawing = withdrawStatus === 'signing' || withdrawStatus === 'confirming'
+  const isWithdrawing = isProcessing || withdrawStatus === 'signing' || withdrawStatus === 'confirming'
 
   return (
     <div

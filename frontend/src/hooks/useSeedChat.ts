@@ -21,6 +21,7 @@ function buildStrategy(lang: 'en' | 'zh'): Strategy {
 export function useSeedChat() {
   const seeded = useRef(false)
   const addMessage = useChatStore((s) => s.addMessage)
+  const clearMessages = useChatStore((s) => s.clearMessages)
   const lang = useLangStore((s) => s.lang)
   const langRef = useRef(lang)
 
@@ -32,6 +33,8 @@ export function useSeedChat() {
     if (seeded.current) return
     seeded.current = true
 
+    clearMessages()
+
     const currentLang = langRef.current
     const t = getT(currentLang)
     const strategy = buildStrategy(currentLang)
@@ -39,6 +42,7 @@ export function useSeedChat() {
     addMessage({
       role: 'user',
       content: t('seed.user1'),
+      isSeed: true,
     })
 
     setTimeout(() => {
@@ -46,6 +50,7 @@ export function useSeedChat() {
         role: 'ai',
         content: t('seed.ai1'),
         strategy,
+        isSeed: true,
       })
     }, 300)
 
@@ -53,6 +58,7 @@ export function useSeedChat() {
       addMessage({
         role: 'user',
         content: t('seed.user2'),
+        isSeed: true,
       })
     }, 600)
 
@@ -60,7 +66,8 @@ export function useSeedChat() {
       addMessage({
         role: 'ai',
         content: t('seed.ai2'),
+        isSeed: true,
       })
     }, 900)
-  }, [addMessage])
+  }, [addMessage, clearMessages])
 }

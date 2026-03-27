@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
-import { useAccount, useChainId, useWriteContract, useReadContract } from 'wagmi'
-import { formatEther } from 'viem'
+import { useAccount, useChainId, useReadContract, useConnectorClient } from 'wagmi'
+import { formatEther, encodeFunctionData, numberToHex } from 'viem'
 import { useChatStore } from '@/stores/chatStore'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { getContracts } from '@/utils/contracts'
@@ -37,7 +37,7 @@ export function useExecuteStrategy() {
     query: { enabled: !!address },
   })
 
-  const { writeContractAsync } = useWriteContract()
+  const { data: connectorClient } = useConnectorClient()
 
   const execute = useCallback(
     async () => {
@@ -74,13 +74,26 @@ export function useExecuteStrategy() {
 
       try {
         if (txParams.mode === 'direct') {
-          const hash = await writeContractAsync({
-            address: txParams.to as `0x${string}`,
+          const calldata = encodeFunctionData({
             abi: VaultAbi,
             functionName: txParams.functionName!,
-            args: txParams.args as readonly unknown[],
-            value: txParams.value ? BigInt(txParams.value) : undefined,
+            args: (txParams.args as readonly unknown[]) ?? [],
           })
+
+          if (!connectorClient) {
+            throw new Error('钱包连接异常，请刷新页面后重试')
+          }
+
+          const hash = await connectorClient.request({
+            method: 'eth_sendTransaction',
+            params: [{
+              from: address,
+              to: txParams.to as `0x${string}`,
+              data: calldata,
+              value: txParams.value ? numberToHex(BigInt(txParams.value)) : undefined,
+              gas: numberToHex(300_000n),
+            }],
+          }) as `0x${string}`
 
           setTxHash(hash)
           setStatus('executing')
@@ -158,7 +171,7 @@ export function useExecuteStrategy() {
         setTimeout(() => setStatus('idle'), 3000)
       }
     },
-    [isConnected, address, chainId, pendingTxParams, writeContractAsync, setPendingTxParams, addMessage, refreshPortfolio, vaultBalance]
+    [isConnected, address, chainId, pendingTxParams, connectorClient, setPendingTxParams, addMessage, refreshPortfolio, vaultBalance]
   )
 
   return {

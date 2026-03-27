@@ -34,8 +34,8 @@ type ActionDef struct {
 var Registry = []ProtocolEntry{
 	{
 		Name: "Aave V3", ChainID: 11155111,
-		Adapter: "",
-		AToken:  "",
+		Adapter: "0x757537A14C90b0F5fc34Df503Cd12cfABfFCc2Ae",
+		AToken:  "0x5b071b590a59395fE4025A0Ccc1FcC931AAc1830",
 		Actions: map[string]ActionDef{
 			"ETH Lending": {FunctionSig: "depositETH(address)", GasEstimate: 250000},
 		},

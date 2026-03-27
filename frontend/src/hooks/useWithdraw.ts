@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react'
-import { useAccount, useChainId, useWriteContract } from 'wagmi'
-import { parseEther } from 'viem'
+import { useState, useCallback, useRef } from 'react'
+import { useAccount, useChainId, useConnectorClient } from 'wagmi'
+import { parseEther, encodeFunctionData, numberToHex } from 'viem'
 import { getContracts } from '@/utils/contracts'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { useChatStore } from '@/stores/chatStore'
@@ -22,24 +22,38 @@ export function useWithdraw() {
   const chainId = useChainId()
   const [status, setStatus] = useState<WithdrawStatus>('idle')
   const [txHash, setTxHash] = useState<string>()
+  const pendingRef = useRef(false)
   const refreshPortfolio = usePortfolioStore((s) => s.refreshPortfolio)
   const addMessage = useChatStore((s) => s.addMessage)
 
-  const { writeContractAsync } = useWriteContract()
+  const { data: connectorClient } = useConnectorClient()
+
+  const isProcessing = status !== 'idle' && status !== 'success' && status !== 'error'
 
   const withdrawFromVault = useCallback(
     async (amountETH: string) => {
-      if (!isConnected || !address) return
+      if (!isConnected || !address || !connectorClient) return
+      if (pendingRef.current) return
+      pendingRef.current = true
 
       setStatus('signing')
       try {
         const contracts = getContracts(chainId)
-        const hash = await writeContractAsync({
-          address: contracts.vault,
+        const calldata = encodeFunctionData({
           abi: VaultAbi,
           functionName: 'withdraw',
           args: [parseEther(amountETH)],
         })
+
+        const hash = await connectorClient.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: address,
+            to: contracts.vault,
+            data: calldata,
+            gas: numberToHex(200_000n),
+          }],
+        }) as `0x${string}`
 
         setTxHash(hash)
         setStatus('confirming')
@@ -58,18 +72,18 @@ export function useWithdraw() {
           addMessage({ role: 'ai', content: '赎回交易失败，请检查余额后重试。' })
         }
 
-        setTimeout(() => setStatus('idle'), 3000)
+        setTimeout(() => { setStatus('idle'); pendingRef.current = false }, 3000)
       } catch (err) {
         setStatus('error')
         const msg = err instanceof Error ? err.message : '赎回失败'
         addMessage({ role: 'ai', content: `赎回失败: ${msg}` })
-        setTimeout(() => setStatus('idle'), 3000)
+        setTimeout(() => { setStatus('idle'); pendingRef.current = false }, 3000)
       }
     },
-    [isConnected, address, chainId, writeContractAsync, refreshPortfolio, addMessage]
+    [isConnected, address, chainId, connectorClient, refreshPortfolio, addMessage]
   )
 
-  return { withdrawFromVault, status, txHash }
+  return { withdrawFromVault, status, txHash, isProcessing }
 }
 
 async function waitForTx(hash: string, chainId: number): Promise<boolean> {
