@@ -15,6 +15,11 @@
       "address": "0x757537A14C90b0F5fc34Df503Cd12cfABfFCc2Ae",
       "txHash": "0xd321a1532589544a7f0e40a8454ef465b2f8906f31e99946e61faa8597eb0e5e",
       "kind": "uups"
+    },
+    {
+      "address": "0xBc5249c466B8B57f87ddE537090f0b05b8A0BF76",
+      "txHash": "0xe918dd72ffe8c4596c996e3fd96353d392586637245a0b259ce0f78851489551",
+      "kind": "uups"
     }
   ],
   "impls": {
@@ -745,6 +750,236 @@
               "slot": "0"
             }
           ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin\\contracts-upgradeable\\access\\OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin\\contracts\\proxy\\utils\\Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin\\contracts\\proxy\\utils\\Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "e02572c6114e4a7c61786c1d9c5306fd27e599f14d68be833d477ef769c52c42": {
+      "address": "0xAf19D328a369a81f65180d6265faE9589332de0C",
+      "txHash": "0x64c8b8735f08afc104d45160eb006f693b685b1cea8886efb20c95abe22e8bab",
+      "layout": {
+        "solcVersion": "0.8.28",
+        "storage": [
+          {
+            "label": "comet",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IComet)2085",
+            "contract": "CompoundV3Adapter",
+            "src": "contracts\\CompoundV3Adapter.sol:29"
+          },
+          {
+            "label": "weth",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_contract(IWETH)2119",
+            "contract": "CompoundV3Adapter",
+            "src": "contracts\\CompoundV3Adapter.sol:31"
+          },
+          {
+            "label": "vault",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_address",
+            "contract": "CompoundV3Adapter",
+            "src": "contracts\\CompoundV3Adapter.sol:31"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)224_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_contract(IComet)2085": {
+            "label": "contract IComet",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IWETH)2119": {
+            "label": "contract IWETH",
+            "numberOfBytes": "20"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin\\contracts-upgradeable\\access\\OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin\\contracts\\proxy\\utils\\Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin\\contracts\\proxy\\utils\\Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "11289c02293d8362975561d3a94b5f44f99243cdc7e50246bac35eb3c75f466c": {
+      "address": "0xB51bEa7C7aB7e70be59C7B21CAc69919D97463ca",
+      "txHash": "0xd5371aab43a31d2682deeee4cc24dfd8aa8c45baf9aedd39cf3f02d8ef9dbc3b",
+      "layout": {
+        "solcVersion": "0.8.28",
+        "storage": [
+          {
+            "label": "comet",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IComet)2099",
+            "contract": "CompoundV3Adapter",
+            "src": "contracts\\CompoundV3Adapter.sol:29"
+          },
+          {
+            "label": "weth",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_contract(IWETH)2133",
+            "contract": "CompoundV3Adapter",
+            "src": "contracts\\CompoundV3Adapter.sol:31"
+          },
+          {
+            "label": "vault",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_address",
+            "contract": "CompoundV3Adapter",
+            "src": "contracts\\CompoundV3Adapter.sol:31"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)224_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_contract(IComet)2099": {
+            "label": "contract IComet",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IWETH)2133": {
+            "label": "contract IWETH",
+            "numberOfBytes": "20"
+          }
+        },
+        "namespaces": {
           "erc7201:openzeppelin.storage.Ownable": [
             {
               "contract": "OwnableUpgradeable",

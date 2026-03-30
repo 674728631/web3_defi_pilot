@@ -40,10 +40,9 @@ func EncodeStrategy(strategy *Strategy, userAddr string, chainID int64) (*TxPara
 	item := strategy.Items[0]
 	entry := FindProtocol(item.Protocol, chainID)
 
-	log.Printf("[ENCODER] protocol=%q chain=%d registryMatch=%v adapterInRegistry=%q adapterInConfig=%q",
+	log.Printf("[ENCODER] protocol=%q chain=%d registryMatch=%v adapterInRegistry=%q",
 		item.Protocol, chainID, entry != nil,
-		func() string { if entry != nil { return entry.Adapter }; return "" }(),
-		chainCfg.Adapter)
+		func() string { if entry != nil { return entry.Adapter }; return "" }())
 
 	totalWei := big.NewInt(0)
 	for _, it := range strategy.Items {
@@ -58,8 +57,8 @@ func EncodeStrategy(strategy *Strategy, userAddr string, chainID int64) (*TxPara
 	}
 
 	// Path 1: Adapter available → depositAndExecute(protocol) on Vault
-	if entry != nil && entry.Adapter != "" && chainCfg.Adapter != "" {
-		adapterAddr := chainCfg.Adapter
+	if entry != nil && entry.Adapter != "" {
+		adapterAddr := entry.Adapter
 		log.Printf("[ENCODER] → Path 1 (depositAndExecute): vault=%s adapter=%s value=%s wei",
 			chainCfg.Vault, adapterAddr, totalWei.String())
 
@@ -101,8 +100,15 @@ func encodeSolverPath(strategy *Strategy, userAddr string, chainID int64, chainC
 		if amountWei.Sign() <= 0 {
 			return nil, fmt.Errorf("solver intent amount must be positive, got %q", item.Amount)
 		}
+		
+		entry := FindProtocol(item.Protocol, chainID)
+		adapterAddr := ""
+		if entry != nil {
+			adapterAddr = entry.Adapter
+		}
+		
 		intents = append(intents, IntentParam{
-			Protocol: chainCfg.Adapter,
+			Protocol: adapterAddr,
 			Amount:   amountWei.String(),
 			Data:     "0x",
 		})

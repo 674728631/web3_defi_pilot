@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { useAccount, useChainId, useConnectorClient } from 'wagmi'
-import { parseEther, encodeFunctionData, numberToHex } from 'viem'
+import { parseEther, encodeFunctionData, numberToHex, createPublicClient, http } from 'viem'
 import { getContracts } from '@/utils/contracts'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { useChatStore } from '@/stores/chatStore'
@@ -40,10 +40,32 @@ export function useWithdraw() {
       setStatus('signing')
       try {
         const contracts = getContracts(chainId)
+        
+        // Always try to fetch exact wei balance from contract to avoid precision issues
+        let exactWei = parseEther(amountETH)
+        try {
+          const client = createPublicClient({ 
+            chain: connectorClient.chain, 
+            transport: http() 
+          })
+          const balance = await client.readContract({
+            address: contracts.vault,
+            abi: VaultAbi,
+            functionName: 'getUserBalance',
+            args: [address]
+          })
+          if (balance > 0n) {
+            exactWei = balance as bigint
+            console.log('[WITHDRAW] using exact wei balance:', exactWei.toString())
+          }
+        } catch (e) {
+          console.warn('[WITHDRAW] failed to get exact balance, using parsed ether', e)
+        }
+
         const calldata = encodeFunctionData({
           abi: VaultAbi,
           functionName: 'withdraw',
-          args: [parseEther(amountETH)],
+          args: [exactWei],
         })
 
         console.log('[WITHDRAW] sending tx to vault:', contracts.vault)

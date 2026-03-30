@@ -51,9 +51,10 @@ var Registry = []ProtocolEntry{
 	},
 	{
 		Name: "Compound V3", ChainID: 11155111,
-		Adapter: "",
+		Adapter: "0xBc5249c466B8B57f87ddE537090f0b05b8A0BF76",
+		AToken:  "0x2943ac1216979aD8dB76D9147F64E61adc126e96", // Comet token address
 		Actions: map[string]ActionDef{
-			"ETH Supply": {FunctionSig: "supply(address,uint256)", GasEstimate: 200000},
+			"ETH Supply": {FunctionSig: "depositETH(address)", GasEstimate: 300000},
 		},
 		APY: 0, Risk: "Low", TVL: 0, Audited: true,
 	},

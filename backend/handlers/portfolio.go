@@ -242,11 +242,10 @@ func queryPosition(
 }
 
 func matchProtocol(protocolAddr common.Address, chainID int64) *services.ProtocolEntry {
-	chainCfg := config.GetChain(chainID)
-	if chainCfg != nil && strings.EqualFold(protocolAddr.Hex(), chainCfg.Adapter) {
-		entry := services.FindProtocol("Aave V3", chainID)
-		if entry != nil {
-			return entry
+	for _, entry := range services.Registry {
+		if entry.ChainID == chainID && strings.EqualFold(protocolAddr.Hex(), entry.Adapter) {
+			// We must return a pointer to a copy or directly from FindProtocol so we don't return pointer to loop variable that changes
+			return services.FindProtocol(entry.Name, chainID)
 		}
 	}
 	return nil
