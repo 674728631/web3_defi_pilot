@@ -20,10 +20,11 @@ const PROTOCOL_ICONS: Record<string, { emoji: string; gradient: string }> = {
 
 export default function PositionCard({ position, index }: Props) {
   const t = useT()
-  const { withdrawFromVault, status: withdrawStatus, isProcessing } = useWithdraw()
+  const { withdrawFromVault, withdrawFromProtocol, status: withdrawStatus, isProcessing } = useWithdraw()
   const iconConfig = PROTOCOL_ICONS[position.protocol] ?? { emoji: '💎', gradient: 'from-cyber-cyan to-cyber-purple' }
   const isHighlight = index === 0
   const isVaultPosition = position.id === 'vault-eth'
+  const isProtocolPosition = position.id.startsWith('pos-')
   const isWithdrawing = isProcessing || withdrawStatus === 'signing' || withdrawStatus === 'confirming'
 
   return (
@@ -90,6 +91,22 @@ export default function PositionCard({ position, index }: Props) {
             className="w-full py-2 rounded-[10px] text-xs font-display tracking-wider border border-neon-amber/20 text-neon-amber hover:bg-neon-amber/10 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isWithdrawing ? '赎回中...' : `赎回 ${position.amount.toFixed(4)} ETH`}
+          </button>
+        </div>
+      )}
+
+      {/* Protocol position redeem button */}
+      {isProtocolPosition && position.amount > 0 && (
+        <div className="mt-3 pt-3 border-t border-white/5">
+          <button
+            onClick={() => {
+              const posId = parseInt(position.id.replace('pos-', ''), 10)
+              withdrawFromProtocol(posId)
+            }}
+            disabled={isWithdrawing}
+            className="w-full py-2 rounded-[10px] text-xs font-display tracking-wider border border-cyber-cyan/20 text-cyber-cyan hover:bg-cyber-cyan/10 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isWithdrawing ? '赎回中...' : `从 ${position.protocol} 赎回`}
           </button>
         </div>
       )}

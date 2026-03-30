@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strconv"
 
 	"defi-pilot-backend/config"
+	"defi-pilot-backend/db"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -36,8 +38,11 @@ func HandleTxStatus(c *gin.Context) {
 	defer client.Close()
 
 	txHash := common.HexToHash(hash)
+	log.Printf("[TX] query hash=%s chain=%d", hash, chainID)
+
 	receipt, err := client.TransactionReceipt(context.Background(), txHash)
 	if err != nil {
+		log.Printf("[TX] hash=%s → pending (no receipt yet)", hash)
 		c.JSON(http.StatusOK, gin.H{
 			"hash":   hash,
 			"status": "pending",
@@ -50,6 +55,17 @@ func HandleTxStatus(c *gin.Context) {
 		status = "success"
 	}
 
+	log.Printf("[TX] hash=%s → %s block=%d gas=%d", hash, status, receipt.BlockNumber.Uint64(), receipt.GasUsed)
+	db.Log(db.AuditEntry{
+		EventType: "tx_confirmed",
+		ChainID:   chainID,
+		TxHash:    hash,
+		Status:    status,
+		Detail: map[string]interface{}{
+			"blockNumber": receipt.BlockNumber.Uint64(),
+			"gasUsed":     receipt.GasUsed,
+		},
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"hash":        hash,
 		"status":      status,

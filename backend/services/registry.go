@@ -271,10 +271,29 @@ func BuildProtocolContext() string {
 
 	var lines string
 	for _, p := range Registry {
-		lines += fmt.Sprintf("%s (chain=%s, risk=%s): APY=%.2f%%, TVL=$%s, Audited=%s\n",
-			p.Name, llamaChainName(p.ChainID), p.Risk, p.APY, formatTVL(p.TVL), formatBool(p.Audited))
+		executable := "display-only"
+		if p.Adapter != "" {
+			executable = "EXECUTABLE (adapter deployed)"
+		}
+		lines += fmt.Sprintf("- %s (chain=%s, chainId=%d, risk=%s, %s): APY=%.2f%%, TVL=$%s, Audited=%s\n",
+			p.Name, internalChainName(p.ChainID), p.ChainID, p.Risk, executable, p.APY, formatTVL(p.TVL), formatBool(p.Audited))
 	}
 	return lines
+}
+
+func internalChainName(chainID int64) string {
+	switch chainID {
+	case 11155111:
+		return "sepolia"
+	case 421614:
+		return "arbitrumSepolia"
+	case 1:
+		return "ethereum"
+	case 42161:
+		return "arbitrum"
+	default:
+		return fmt.Sprintf("chain-%d", chainID)
+	}
 }
 
 func formatFloat(f float64) string {

@@ -70,6 +70,13 @@ export function useExecuteStrategy() {
         }
       }
 
+      console.log('[EXECUTE] start', {
+        mode: txParams.mode,
+        fn: txParams.functionName,
+        to: txParams.to,
+        value: txParams.value,
+        chainId: effectiveChainId,
+      })
       setStatus('depositing')
 
       try {
@@ -80,27 +87,34 @@ export function useExecuteStrategy() {
             args: (txParams.args as readonly unknown[]) ?? [],
           })
 
+          console.log('[EXECUTE] direct tx calldata:', calldata.slice(0, 10), '...')
+
           if (!connectorClient) {
             throw new Error('钱包连接异常，请刷新页面后重试')
           }
 
+          const txReq = {
+            from: address,
+            to: txParams.to as `0x${string}`,
+            data: calldata,
+            value: txParams.value ? numberToHex(BigInt(txParams.value)) : undefined,
+            gas: numberToHex(500_000n),
+          }
+          console.log('[EXECUTE] sending eth_sendTransaction:', txReq)
+
           const hash = await connectorClient.request({
             method: 'eth_sendTransaction',
-            params: [{
-              from: address,
-              to: txParams.to as `0x${string}`,
-              data: calldata,
-              value: txParams.value ? numberToHex(BigInt(txParams.value)) : undefined,
-              gas: numberToHex(300_000n),
-            }],
+            params: [txReq],
           }) as `0x${string}`
 
+          console.log('[EXECUTE] tx sent, hash:', hash)
           setTxHash(hash)
           setStatus('executing')
           setPendingTxParams(null)
 
           const explorerUrl = getExplorerUrl(effectiveChainId, hash)
           const txResult = await waitForTx(hash, effectiveChainId)
+          console.log('[EXECUTE] tx result:', txResult)
           if (txResult === 'success') {
             setStatus('success')
             addMessage({
@@ -119,6 +133,7 @@ export function useExecuteStrategy() {
             addMessage({ role: 'ai', content: `交易失败，请检查 Gas 或余额后重试。[查看详情](${explorerUrl})` })
           }
         } else if (txParams.mode === 'solver') {
+          console.log('[EXECUTE] solver path, intents:', txParams.intents)
           setStatus('executing')
 
           const res = await fetch(`${BACKEND_URL}/api/execute`, {
@@ -165,6 +180,7 @@ export function useExecuteStrategy() {
 
         setTimeout(() => setStatus('idle'), 5000)
       } catch (err) {
+        console.error('[EXECUTE] failed:', err)
         setStatus('error')
         const msg = err instanceof Error ? err.message : '未知错误'
         addMessage({ role: 'ai', content: `执行失败: ${msg}` })

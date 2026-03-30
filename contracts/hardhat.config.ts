@@ -12,6 +12,12 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
+    hardhat: {
+      forking: {
+        url: process.env.SEPOLIA_RPC_URL || "https://eth-sepolia.g.alchemy.com/v2/ZcQ5LqZBiwEi0ydLIqlm9",
+        enabled: !!process.env.FORK_SEPOLIA,
+      },
+    },
     sepolia: {
       chainId: 11155111,
       url: process.env.SEPOLIA_RPC_URL || "https://rpc.sepolia.org",

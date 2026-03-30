@@ -36,6 +36,7 @@ export function useWithdraw() {
       if (pendingRef.current) return
       pendingRef.current = true
 
+      console.log('[WITHDRAW] start', { amount: amountETH, user: address, chainId })
       setStatus('signing')
       try {
         const contracts = getContracts(chainId)
@@ -45,6 +46,7 @@ export function useWithdraw() {
           args: [parseEther(amountETH)],
         })
 
+        console.log('[WITHDRAW] sending tx to vault:', contracts.vault)
         const hash = await connectorClient.request({
           method: 'eth_sendTransaction',
           params: [{
@@ -55,11 +57,13 @@ export function useWithdraw() {
           }],
         }) as `0x${string}`
 
+        console.log('[WITHDRAW] tx sent, hash:', hash)
         setTxHash(hash)
         setStatus('confirming')
 
         const explorerUrl = getExplorerUrl(chainId, hash)
         const confirmed = await waitForTx(hash, chainId)
+        console.log('[WITHDRAW] tx result:', confirmed ? 'success' : 'failed')
         if (confirmed) {
           setStatus('success')
           addMessage({
@@ -74,6 +78,7 @@ export function useWithdraw() {
 
         setTimeout(() => { setStatus('idle'); pendingRef.current = false }, 3000)
       } catch (err) {
+        console.error('[WITHDRAW] failed:', err)
         setStatus('error')
         const msg = err instanceof Error ? err.message : '赎回失败'
         addMessage({ role: 'ai', content: `赎回失败: ${msg}` })
@@ -83,7 +88,65 @@ export function useWithdraw() {
     [isConnected, address, chainId, connectorClient, refreshPortfolio, addMessage]
   )
 
-  return { withdrawFromVault, status, txHash, isProcessing }
+  const withdrawFromProtocol = useCallback(
+    async (positionId: number) => {
+      if (!isConnected || !address || !connectorClient) return
+      if (pendingRef.current) return
+      pendingRef.current = true
+
+      console.log('[WITHDRAW-PROTOCOL] start', { positionId, user: address, chainId })
+      setStatus('signing')
+      try {
+        const contracts = getContracts(chainId)
+        const calldata = encodeFunctionData({
+          abi: VaultAbi,
+          functionName: 'withdrawFromProtocol',
+          args: [BigInt(positionId)],
+        })
+
+        console.log('[WITHDRAW-PROTOCOL] sending tx to vault:', contracts.vault)
+        const hash = await connectorClient.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: address,
+            to: contracts.vault,
+            data: calldata,
+            gas: numberToHex(500_000n),
+          }],
+        }) as `0x${string}`
+
+        console.log('[WITHDRAW-PROTOCOL] tx sent, hash:', hash)
+        setTxHash(hash)
+        setStatus('confirming')
+
+        const explorerUrl = getExplorerUrl(chainId, hash)
+        const confirmed = await waitForTx(hash, chainId)
+        console.log('[WITHDRAW-PROTOCOL] tx result:', confirmed ? 'success' : 'failed')
+        if (confirmed) {
+          setStatus('success')
+          addMessage({
+            role: 'ai',
+            content: `协议持仓赎回成功！ETH 已退回 Vault。[查看区块浏览器](${explorerUrl})`,
+          })
+          refreshPortfolio(address, chainId)
+        } else {
+          setStatus('error')
+          addMessage({ role: 'ai', content: '协议赎回交易失败，请重试。' })
+        }
+
+        setTimeout(() => { setStatus('idle'); pendingRef.current = false }, 3000)
+      } catch (err) {
+        console.error('[WITHDRAW-PROTOCOL] failed:', err)
+        setStatus('error')
+        const msg = err instanceof Error ? err.message : '赎回失败'
+        addMessage({ role: 'ai', content: `协议赎回失败: ${msg}` })
+        setTimeout(() => { setStatus('idle'); pendingRef.current = false }, 3000)
+      }
+    },
+    [isConnected, address, chainId, connectorClient, refreshPortfolio, addMessage]
+  )
+
+  return { withdrawFromVault, withdrawFromProtocol, status, txHash, isProcessing }
 }
 
 async function waitForTx(hash: string, chainId: number): Promise<boolean> {

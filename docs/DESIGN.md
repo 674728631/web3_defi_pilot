@@ -28,30 +28,35 @@
 ### 2.1 逻辑分层
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  表现层：Web 前端（React + wagmi）                            │
-│  - 钱包连接、网络切换                                         │
-│  - 调用 Vault：deposit / withdraw / 读余额与持仓数             │
-│  - 策略「一键执行」当前为演示流程（见 6.2）                     │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ RPC / 钱包签名交易
-┌──────────────────────────▼──────────────────────────────────┐
-│  链上执行层                                                   │
-│  IntentExecutor ──executeBatch──► DeFiPilotVault             │
-│       (Solver)                    executeStrategy             │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ call{value}(data)
-┌──────────────────────────▼──────────────────────────────────┐
-│  外部协议层（须列入 Vault 白名单）                             │
-│  任意合约地址，由 calldata 决定具体调用                        │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│  表现层：Web 前端（React + wagmi + RainbowKit）                 │
+│  - 钱包连接、网络切换                                           │
+│  - AI 对话 → 策略推荐 → 一键执行（depositAndExecute）           │
+│  - 仪表盘：余额、持仓、赎回                                     │
+└────────────────────────┬───────────────────────────────────────┘
+                         │ RPC / 钱包签名交易
+┌────────────────────────▼───────────────────────────────────────┐
+│  链上执行层                                                      │
+│                                                                  │
+│  用户直接调用（Direct 模式）：                                    │
+│    DeFiPilotVault.depositAndExecute(adapter) ──►                │
+│    AaveV3Adapter.depositETH ──► Aave Gateway ──► Aave Pool     │
+│                                                                  │
+│  Solver 调用（Solver 模式）：                                    │
+│    IntentExecutor.executeBatch ──► DeFiPilotVault.executeStrategy│
+│                                                                  │
+│  赎回：                                                          │
+│    DeFiPilotVault.withdrawFromProtocol ──►                      │
+│    AaveV3Adapter.withdrawETH ──► Aave Gateway ──► ETH 返回 Vault│
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2 合约职责
 
 | 合约 | 职责 |
 |------|------|
-| **DeFiPilotVault** | 托管用户 **记账余额**（`ethBalance`）；提供存取款；在授权下将用户余额对应的 ETH 以 `call` 发往白名单协议并记录 `Position`。 |
+| **DeFiPilotVault** | 核心金库。提供 `deposit`/`withdraw`（ETH 存取）、`depositAndExecute`（一键投入协议）、`withdrawFromProtocol`（从协议赎回）、`executeStrategy`（Solver 调用）。管理用户余额、持仓记录、协议白名单。 |
+| **AaveV3Adapter** | Aave V3 协议适配器。通过 `WrappedTokenGateway` 将 ETH 存入/取出 Aave Pool。仅 Vault 可调用（`onlyVault`）。UUPS 可升级。 |
 | **IntentExecutor** | 聚合多条「意图」为批量调用；仅 **Solver（及 Owner）** 可触发 `executeBatch`，进而调用 Vault 的 `executeStrategy`。 |
 
 ---
@@ -117,7 +122,76 @@
 - 仅 **调用者本人** 可提走自己的账面余额；合约不暴露「代他人提款」接口。  
 - 金库合约地址上实际持有的 ETH 总量应 **不少于** 所有用户 `ethBalance` 之和（正常运营下相等；若有人误转 ETH 到合约但不走 `deposit`，可能造成「合约余额 > 记账总和」的会计差异，属边缘情况，见 5.4）。
 
-### 4.3 策略执行（账面余额转为对外部协议的 ETH 调用）
+### 4.3 一键存入并执行（Direct 模式：depositAndExecute）
+
+**路径：** 用户 EOA → `DeFiPilotVault.depositAndExecute(adapter)` → `AaveV3Adapter.depositETH` → `WrappedTokenGateway.depositETH` → `Aave Pool`
+
+这是当前 **主要的用户操作入口**，一笔交易完成「存入 ETH + 投放到 DeFi 协议」。
+
+调用链：
+
+1. 用户通过前端点击「一键执行」，前端调用 `depositAndExecute(adapterAddress)` 并附带 `msg.value`。
+2. Vault 内逻辑：
+   - 校验 `msg.value > 0`、`whitelistedProtocols[protocol]`；
+   - 调用 `IAaveV3Adapter(protocol).aWETH()` 获取 aToken 地址；
+   - 记录 Vault 当前 aWETH 余额（`balanceBefore`）；
+   - 调用 `IAaveV3Adapter(protocol).depositETH{value: msg.value}(address(this))`；
+   - 计算 aWETH 增量 `received = balanceAfter - balanceBefore`；
+   - 写入 `Position`（记录 protocol、amount、receivedToken、receivedAmount）；
+   - 发出 `StrategyExecuted` 事件。
+3. Adapter 内逻辑：
+   - `depositETH` 校验 `msg.sender == vault`（onlyVault）；
+   - 调用 `gateway.depositETH{value: msg.value}(pool, onBehalfOf, 0)`；
+   - Gateway 将 ETH 包装为 WETH → 供应到 Aave Pool → Pool 铸造 aWETH 到 `onBehalfOf`（即 Vault 地址）。
+
+**资金流：**
+
+```
+用户钱包 ──(1 ETH)──► Vault ──(1 ETH)──► Adapter ──(1 ETH)──► Gateway ──(WETH)──► Aave Pool
+                                                                                      │
+                                                                              (铸造 1 aWETH)
+                                                                                      │
+                                                                                      ▼
+                                                                                  Vault 持有
+                                                                                  1 aWETH
+```
+
+**Gas 消耗：** 约 400,000-450,000 gas（包含 Gateway 包装、Pool supply、aWETH mint）。
+
+### 4.4 从协议赎回（withdrawFromProtocol）
+
+**路径：** 用户 EOA → `DeFiPilotVault.withdrawFromProtocol(positionId)` → `AaveV3Adapter.withdrawETH` → `WrappedTokenGateway.withdrawETH` → ETH 返回 Vault
+
+调用链：
+
+1. 用户在前端 ACTIVE POSITIONS 卡片上点击「从 Aave V3 赎回」。
+2. Vault 内逻辑：
+   - 校验 `pos.active == true`、`pos.receivedToken != address(0)`；
+   - 读取 Vault 当前 aWETH 余额，按比例计算该用户可赎回的 aWETH 数量（含利息分配）；
+   - 将 aWETH 转给 Adapter（`safeTransfer`）；
+   - 调用 `adapter.withdrawETH(redeemAmount, address(this))`；
+   - 记录 Vault 收到的 ETH 增量，计入用户 `ethBalance`；
+   - 标记 Position 为 `active = false`。
+3. Adapter 内逻辑：
+   - `withdrawETH` 校验 `msg.sender == vault`；
+   - 授权 Gateway 使用 aWETH（`aWETH.approve(gateway, amount)`）；
+   - 调用 `gateway.withdrawETH(pool, amount, to)` → Gateway 从 Pool 取回 WETH → 解包为 ETH → 发送到 `to`（Vault）。
+
+**资金流：**
+
+```
+Vault ──(aWETH)──► Adapter ──(approve aWETH)──► Gateway ──(从 Pool 取回)──► ETH
+                                                                              │
+                                                                    (ETH 返回 Vault)
+                                                                              │
+                                                                              ▼
+                                                                    用户 ethBalance 增加
+                                                                    （可再调用 withdraw 提取到钱包）
+```
+
+**Gas 消耗：** 约 350,000-400,000 gas。
+
+### 4.5 Solver 批量执行（Solver 模式：executeStrategy）
 
 **路径：** Solver（经 Executor）→ `DeFiPilotVault` → **白名单** `protocol` 合约
 
@@ -129,25 +203,21 @@
    - 校验 `whitelistedProtocols[protocol]`；  
    - 校验 `_users[user].ethBalance >= amount`；  
    - `userInfo.ethBalance -= amount`；  
+   - 若 protocol 实现了 `aWETH()` 接口，追踪 aToken 回流（用于后续 `withdrawFromProtocol` 赎回）；
    - `(bool success,) = protocol.call{value: amount}(data)`，`success` 必须为 true；  
    - 写入 `Position` 并发出 `StrategyExecuted`。
 
-**资金流：**
-
-- 从 **Vault 合约的 ETH 余额** 中划出 `amount`，随 `call` 一并发送给 `protocol`。  
-- 同时从 **`user` 的账面余额** 扣除 `amount`，保证「谁的钱记谁账」与「实际从金库付出」一致。
-
-**与存款的对应关系：**
+**前提条件：**
 
 - 用户必须先通过 4.1 使 `_users[user].ethBalance` 有足够余额；否则 `executeStrategy` 因 `Insufficient balance` 失败。  
 - **当前实现不要求** 用户对 `executeBatch` 再签一笔「授权」交易；链上信任模型见 **第 5 节**。
 
-### 4.4 批量执行的原子性
+### 4.6 批量执行的原子性
 
 - `executeBatch` 循环调用 `executeStrategy`；任一步 revert，**整笔交易回滚**。  
 - 因此同一批次内的多条意图要么全部成功，要么全部不生效（含余额扣减与外部调用）。
 
-### 4.5 数据流（非资金流）补充
+### 4.7 数据流（非资金流）补充
 
 - **事件**：`Deposited`、`Withdrawn`、`StrategyExecuted`、`ProtocolWhitelisted`、`IntentExecutorUpdated` 等可供索引器/前端展示。  
 - **只读接口**：`getUserBalance`、`getUserPositionCount`、`getUserPosition` 用于前端或链下服务查询。
@@ -207,17 +277,30 @@
 
 ---
 
-## 6. 链下与前端（与安全的交界）
+## 6. 链下与前端
 
-### 6.1 前端金库交互（已实现）
+### 6.1 AI 驱动的策略生成
 
-- `useVault`：在配置的 `vault` 地址上调用 `deposit`（带 `value`）、`withdraw`、`getUserBalance`、`getUserPositionCount`。  
-- 合约地址按链 ID 配置于 `frontend/src/utils/contracts.ts`；**部署后需将占位零地址替换为真实地址**。
+1. 用户在聊天面板描述投资意图（如"投 1 ETH 到 Aave"）。
+2. 后端 `/api/chat` 将用户消息 + 链上状态（钱包余额、Vault 余额、持仓数）+ 协议上下文注入 AI 系统提示。
+3. AI 返回自然语言解释 + JSON 策略块。
+4. 后端 Encoder 将策略编码为可执行的交易参数（`depositAndExecute` 的 calldata）。
+5. 前端收到 `txParams`（包含 to、data、value、mode），用户点击「一键执行」直接签名发送。
 
-### 6.2 策略「一键执行」（当前为演示）
+### 6.2 前端金库交互（已实现且经过验证）
 
-- `useExecuteStrategy` 中流程为 **延时模拟**，未在演示代码中串联真实的 `deposit` + `executeBatch` 交易。  
-- 生产接入时应：用户授权额度/签名意图 → Solver 提交 `executeBatch` → 前端跟踪回执与事件。
+- `useExecuteStrategy`：直接调用 `Vault.depositAndExecute(adapter)` 或 `Vault.deposit()`，一笔交易完成存入+投放。
+- `useWithdraw`：
+  - `withdrawFromVault(amount)`：从 Vault 余额提取 ETH 到钱包。
+  - `withdrawFromProtocol(positionId)`：从 DeFi 协议赎回 aToken → ETH → Vault 余额。
+- `useChat`：管理 AI 对话、策略解析、txParams 传递。
+- 合约地址按链 ID 配置于 `frontend/src/utils/contracts.ts`（由部署脚本自动写入）。
+
+### 6.3 持仓展示
+
+- 前端每 30 秒调用 `/api/portfolio` 从链上读取真实数据。
+- Vault 余额 > 0 时显示 Vault 持仓卡片（含提取按钮）。
+- 协议持仓通过 `getUserPositionCount` + `getUserPosition` 读取，显示协议名、金额、APY、风险等级（含赎回按钮）。
 
 ---
 

@@ -16,7 +16,7 @@ import (
 )
 
 var aiHTTPClient = &http.Client{
-	Timeout: 30 * time.Second,
+	Timeout: 120 * time.Second,
 }
 
 // StrategyItem represents a single protocol allocation in a strategy
@@ -66,7 +66,7 @@ type openAIResponse struct {
 
 const systemPrompt = `You are DeFi Pilot AI, an expert DeFi strategy advisor. You help users allocate their crypto assets across multiple chains and protocols to maximize yield while managing risk.
 
-Available DeFi protocols:
+Available DeFi protocols (on testnet):
 %s
 
 When the user describes their intent (assets, risk preference, chain preference, yield goals), you MUST respond with BOTH:
@@ -74,15 +74,19 @@ When the user describes their intent (assets, risk preference, chain preference,
 2. A JSON strategy block wrapped in ` + "```json ... ```" + ` containing:
 {
   "items": [
-    { "chain": "chainName", "protocol": "protocolName", "action": "actionType", "amount": "X.X ETH", "apy": 5.12, "detail": "description" }
+    { "chain": "sepolia", "protocol": "Aave V3", "action": "ETH Lending", "amount": "X.X ETH", "apy": 5.12, "detail": "description" }
   ],
   "totalApy": 5.17,
   "riskLevel": "Low",
   "estimatedYearlyReturn": 1892
 }
 
-Rules:
-- Always diversify across at least 2 protocols
+CRITICAL Rules:
+- The "chain" field MUST use the exact chain name from the protocol list above (e.g. "sepolia", "arbitrumSepolia"). NEVER use "ethereum" or "arbitrum".
+- The "protocol" field MUST exactly match one of the protocol names listed above (e.g. "Aave V3", "Compound V3").
+- The "action" field MUST exactly match one of the action names from the protocol's available actions.
+- ONLY recommend protocols marked as "EXECUTABLE (adapter deployed)". Do NOT recommend "display-only" protocols.
+- If only 1 executable protocol is available, allocate all funds to that protocol. Do NOT split funds to non-executable protocols.
 - Respect user's risk preference strictly
 - Only recommend audited protocols unless user explicitly accepts unaudited
 - Calculate totalApy as weighted average
@@ -106,6 +110,7 @@ func callOpenAI(messages []ChatMessage, onChainContext string) *AIResponse {
 	cfg := config.C
 
 	if cfg.OpenAIKey == "" {
+		log.Printf("[AI] no API key configured, using fallback strategy")
 		lastMsg := ""
 		for i := len(messages) - 1; i >= 0; i-- {
 			if messages[i].Role == "user" {
@@ -113,7 +118,9 @@ func callOpenAI(messages []ChatMessage, onChainContext string) *AIResponse {
 				break
 			}
 		}
-		return buildFallbackStrategy(lastMsg)
+		fb := buildFallbackStrategy(lastMsg)
+		log.Printf("[AI FALLBACK] generated strategy with %d items", len(fb.Strategy.Items))
+		return fb
 	}
 
 	protocolCtx := BuildProtocolContext()
@@ -138,6 +145,13 @@ func callOpenAI(messages []ChatMessage, onChainContext string) *AIResponse {
 	}
 	apiURL := cfg.OpenAIBaseURL + "/chat/completions"
 	log.Printf("[AI REQUEST] url=%s model=%s messages=%d", apiURL, cfg.OpenAIModel, len(allMessages))
+	for i, m := range allMessages {
+		preview := m.Content
+		if len(preview) > 200 {
+			preview = preview[:200] + "..."
+		}
+		log.Printf("[AI REQUEST] msg[%d] role=%s content=%s", i, m.Role, preview)
+	}
 	req, err := http.NewRequest("POST", apiURL, bytes.NewReader(jsonBody))
 	if err != nil {
 		log.Printf("[AI] request creation error: %v", err)
@@ -146,8 +160,11 @@ func callOpenAI(messages []ChatMessage, onChainContext string) *AIResponse {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+cfg.OpenAIKey)
 
+	startTime := time.Now()
 	resp, err := aiHTTPClient.Do(req)
+	elapsed := time.Since(startTime)
 	if err != nil {
+		log.Printf("[AI ERROR] request failed after %v: %v → using fallback strategy", elapsed, err)
 		lastMsg := ""
 		for i := len(messages) - 1; i >= 0; i-- {
 			if messages[i].Role == "user" {
@@ -155,13 +172,16 @@ func callOpenAI(messages []ChatMessage, onChainContext string) *AIResponse {
 				break
 			}
 		}
-		return buildFallbackStrategy(lastMsg)
+		fb := buildFallbackStrategy(lastMsg)
+		log.Printf("[AI FALLBACK] generated strategy with %d items", len(fb.Strategy.Items))
+		return fb
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
+	log.Printf("[AI] response received in %v", elapsed)
 	if resp.StatusCode != 200 {
-		log.Printf("[AI ERROR] status=%d body=%s", resp.StatusCode, string(body))
+		log.Printf("[AI ERROR] status=%d body=%s → using fallback strategy", resp.StatusCode, string(body))
 		lastMsg := ""
 		for i := len(messages) - 1; i >= 0; i-- {
 			if messages[i].Role == "user" {
@@ -169,10 +189,13 @@ func callOpenAI(messages []ChatMessage, onChainContext string) *AIResponse {
 				break
 			}
 		}
-		return buildFallbackStrategy(lastMsg)
+		fb := buildFallbackStrategy(lastMsg)
+		log.Printf("[AI FALLBACK] generated strategy with %d items", len(fb.Strategy.Items))
+		return fb
 	}
 
 	log.Printf("[AI RESPONSE] status=%d body_len=%d", resp.StatusCode, len(body))
+	log.Printf("[AI RESPONSE BODY] %s", string(body))
 
 	var aiResp openAIResponse
 	if err := json.Unmarshal(body, &aiResp); err != nil {
@@ -186,8 +209,12 @@ func callOpenAI(messages []ChatMessage, onChainContext string) *AIResponse {
 	}
 
 	rawText := aiResp.Choices[0].Message.Content
-	log.Printf("[AI CONTENT] %d chars", len(rawText))
+	log.Printf("[AI CONTENT] (%d chars):\n%s", len(rawText), rawText)
 	cleanText, strategy := parseStrategy(rawText)
+	if strategy != nil {
+		strategyJSON, _ := json.MarshalIndent(strategy, "", "  ")
+		log.Printf("[AI STRATEGY PARSED]:\n%s", string(strategyJSON))
+	}
 
 	return &AIResponse{Text: cleanText, Strategy: strategy}
 }

@@ -2,9 +2,11 @@ package main
 
 import (
 	"log"
+	"path/filepath"
 	"time"
 
 	"defi-pilot-backend/config"
+	"defi-pilot-backend/db"
 	"defi-pilot-backend/handlers"
 	"defi-pilot-backend/services"
 
@@ -15,6 +17,10 @@ import (
 func main() {
 	config.Load()
 	services.InitRegistry()
+
+	dbPath := filepath.Join(".", "audit.db")
+	db.Init(dbPath)
+	defer db.Close()
 
 	r := gin.Default()
 
@@ -41,6 +47,8 @@ func main() {
 			price := services.GetETHPrice()
 			c.JSON(200, gin.H{"symbol": "ETH", "usd": price})
 		})
+		api.GET("/audit/logs", handlers.HandleAuditLogs)
+		api.GET("/audit/stats", handlers.HandleAuditStats)
 	}
 
 	// Health check endpoint

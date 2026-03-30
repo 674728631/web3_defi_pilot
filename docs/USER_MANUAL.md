@@ -179,27 +179,69 @@ AI 会根据您的反馈重新生成策略。
 
 ## 8. 链上操作
 
-### 8.1 存款（一键执行）
+### 8.1 一键投入协议（depositAndExecute）
 
-点击策略卡片的「一键执行」后：
+点击策略卡片的 **「一键执行」** 按钮后：
 
-- **若 Aave Adapter 已部署** → 调用 `depositAndExecute`，一笔交易完成「存入 ETH + 执行策略」
-- **若无 Adapter** → 调用 `deposit()`，ETH 存入金库余额
-- **交易确认后** → 聊天面板显示 Etherscan 链接，仪表盘自动刷新
+1. **MetaMask 弹出确认交易**（Gas Limit: 500,000，实际消耗约 430,000）
+2. 前端调用 Vault 合约的 `depositAndExecute(adapterAddress)`，附带 ETH
+3. **资金流转**（一笔交易完成）：
 
-### 8.2 提取 ETH
+```
+你的钱包 → Vault → AaveV3Adapter → Aave Gateway → Aave Pool
+                                                      ↓
+                                              Vault 收到 aWETH
+                                              持仓记录写入链上
+```
 
-在仪表盘的 Vault 持仓卡片上点击 **「Withdraw X ETH」**：
+4. 交易确认后：
+   - 聊天面板显示 **Etherscan 链接**
+   - 仪表盘的 **ACTIVE POSITIONS** 自动显示 Aave V3 持仓卡片
+   - **TOTAL ASSETS** 自动更新
+
+**注意**：若 AI 推荐的协议没有部署 Adapter，会走 `deposit()` 路径，ETH 仅存入金库余额。
+
+### 8.2 从 DeFi 协议赎回（withdrawFromProtocol）
+
+在 ACTIVE POSITIONS 中的协议持仓卡片上，点击 **「从 Aave V3 赎回」** 按钮：
+
+1. MetaMask 弹出确认交易（Gas Limit: 500,000，实际消耗约 375,000）
+2. **资金流转**（一笔交易完成）：
+
+```
+Vault 将 aWETH 转给 Adapter → Adapter 通过 Gateway 从 Aave Pool 取回 ETH
+                                                                  ↓
+                                                          ETH 返回 Vault
+                                                     记入你的 Vault 余额
+```
+
+3. 赎回完成后：
+   - 协议持仓卡片消失（Position 标记为 inactive）
+   - Vault 余额增加（可能因 Aave 利息而略多于投入金额）
+   - 聊天面板显示赎回成功通知
+
+### 8.3 从 Vault 提取到钱包
+
+赎回后，ETH 进入 Vault 的用户余额。在 **DeFi Pilot Vault** 持仓卡片上点击 **「赎回 X ETH」**：
+
 1. MetaMask 弹出确认交易
 2. Vault 中的 ETH 转入您的钱包
-3. 交易确认后聊天面板显示状态通知，仪表盘自动刷新
+3. 交易确认后仪表盘自动刷新
 
-### 8.4 安全提示
+### 8.4 完整资金流程
 
-- 将 ETH 存入金库即表示信任项目方配置的合规操作体系，详见 `docs/DESIGN.md` 第 6 节。
+```
+存入：  钱包 ETH → Vault → Adapter → Aave Pool（获得 aWETH）
+赎回：  Aave Pool → Gateway 解包 → ETH 返回 Vault 余额
+提取：  Vault 余额 → 钱包 ETH
+```
+
+### 8.5 安全提示
+
+- 将 ETH 存入金库即表示信任项目方配置的合规操作体系，详见 `docs/DESIGN.md` 第 5 节。
 - **仅使用测试网资金**。
 - 保管好钱包助记词/私钥，不要向任何人泄露。
-- 链上执行需要 Gas 费（测试 ETH）。
+- 链上执行需要 Gas 费（测试 ETH），每次交易约消耗 375,000-450,000 gas。
 
 ---
 

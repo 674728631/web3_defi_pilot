@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log"
 	"math/big"
 	"strings"
 
@@ -39,6 +40,11 @@ func EncodeStrategy(strategy *Strategy, userAddr string, chainID int64) (*TxPara
 	item := strategy.Items[0]
 	entry := FindProtocol(item.Protocol, chainID)
 
+	log.Printf("[ENCODER] protocol=%q chain=%d registryMatch=%v adapterInRegistry=%q adapterInConfig=%q",
+		item.Protocol, chainID, entry != nil,
+		func() string { if entry != nil { return entry.Adapter }; return "" }(),
+		chainCfg.Adapter)
+
 	totalWei := big.NewInt(0)
 	for _, it := range strategy.Items {
 		wei, err := parseETHAmount(it.Amount)
@@ -54,6 +60,8 @@ func EncodeStrategy(strategy *Strategy, userAddr string, chainID int64) (*TxPara
 	// Path 1: Adapter available → depositAndExecute(protocol) on Vault
 	if entry != nil && entry.Adapter != "" && chainCfg.Adapter != "" {
 		adapterAddr := chainCfg.Adapter
+		log.Printf("[ENCODER] → Path 1 (depositAndExecute): vault=%s adapter=%s value=%s wei",
+			chainCfg.Vault, adapterAddr, totalWei.String())
 
 		return &TxParams{
 			Mode:         "direct",
@@ -67,6 +75,7 @@ func EncodeStrategy(strategy *Strategy, userAddr string, chainID int64) (*TxPara
 
 	// Path 2: No adapter → direct Vault deposit (user deposits ETH into vault)
 	if chainCfg.Vault != "" && chainCfg.Vault != "0x0000000000000000000000000000000000000000" {
+		log.Printf("[ENCODER] → Path 2 (deposit): vault=%s value=%s wei", chainCfg.Vault, totalWei.String())
 		return &TxParams{
 			Mode:         "direct",
 			To:           chainCfg.Vault,
@@ -78,6 +87,7 @@ func EncodeStrategy(strategy *Strategy, userAddr string, chainID int64) (*TxPara
 	}
 
 	// Path 3: Solver path (EIP-712 signed intent)
+	log.Printf("[ENCODER] → Path 3 (solver): intents=%d", len(strategy.Items))
 	return encodeSolverPath(strategy, userAddr, chainID, chainCfg)
 }
 
