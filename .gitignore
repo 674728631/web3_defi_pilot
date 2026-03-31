@@ -23,3 +23,6 @@ contracts/typechain-types/
 # OS
 .DS_Store
 Thumbs.db
+
+# Runtime data
+*.db
