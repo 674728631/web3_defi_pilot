@@ -370,6 +370,31 @@ A: 确认 AaveV3Adapter 已：
 2. 通过 `adapter.setVault(vault)` 设置 Vault 地址
 3. Aave Gateway/Pool/aWETH 地址正确
 
+### Q: 如何部署额外的协议 Adapter？
+
+DeFi Pilot 的适配器架构支持热插拔。部署新协议**无需修改 Vault 合约或前端代码**。
+
+**步骤：**
+
+1. 编写实现统一接口的 Adapter 合约（需包含 `aWETH()`、`depositETH(address)`、`withdrawETH(uint256,address)` 方法）
+2. 部署到链上
+3. 调用 `adapter.setVault(vaultAddress)` 设置 Vault
+4. 调用 `vault.whitelistProtocol(adapterAddress, true)` 加入白名单
+5. 在后端 `services/registry.go` 的 Registry 中添加条目
+
+**已部署的 Adapter 参考命令：**
+
+```bash
+# 部署 Lido Mock + Uniswap V3 适配器
+npx hardhat run scripts/deploy-lido-uniswap.ts --network sepolia
+
+# 部署 Compound V3 适配器
+npx hardhat run scripts/deploy-compound-adapter.ts --network sepolia
+
+# 升级 Compound V3 适配器（修复后）
+npx hardhat run scripts/upgrade-compound.ts --network sepolia
+```
+
 ### Q: 如何紧急暂停合约？
 A: 以 owner 身份调用：
 

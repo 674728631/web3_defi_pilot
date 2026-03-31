@@ -7,7 +7,16 @@
 
 ## 1. 产品简介
 
-**DeFi Pilot** 是一个 AI 驱动的 DeFi 策略引擎。您只需用自然语言描述投资意图（如"把 2 ETH 投到低风险协议"），AI 即可分析多链多协议数据，生成最优策略并编码为可执行的链上交易。您只需一键确认，即可完成从存入到 Aave 等协议的完整交互。
+**DeFi Pilot** 是一个 AI 驱动的 DeFi 策略引擎。您只需用自然语言描述投资意图（如"把 2 ETH 投到低风险协议"），AI 即可分析多链多协议数据，生成最优策略并编码为可执行的链上交易。您只需一键确认，即可完成从存入到 Aave、Compound、Lido、Uniswap 等协议的完整交互。
+
+**当前已集成 4 个协议，覆盖 3 大赛道：**
+
+| 协议 | 赛道 | 类型 | 风险 |
+|------|------|------|------|
+| **Aave V3** | 借贷 | 真实协议 | Low |
+| **Compound V3** | 借贷 | 真实协议 | Low |
+| **Lido** | ETH 质押 | Mock（Sepolia 上 Lido 已弃用） | Low |
+| **Uniswap V3** | DEX 流动性提供 | 真实协议 | Medium |
 
 **核心流程：**  
 `对话 → AI 策略 → 一键确认 → 链上执行 → 查看真实持仓 → 随时赎回`
@@ -101,6 +110,9 @@ npx hardhat run scripts/deploy.ts --network sepolia
 - "把 2 ETH 投到低风险协议"
 - "我有 5 ETH，想要高收益，可以接受中等风险"
 - "帮我分散投资到 Aave 和 Lido"
+- "帮我把 1 ETH 质押到 Lido 赚利息"
+- "投 0.5 ETH 到 Compound"
+- "帮我用 1 ETH 做 Uniswap 的流动性提供"
 
 发送后等待 AI 回复。AI 会分析您的链上状态（余额、持仓）和多个协议的数据，生成策略建议。
 
@@ -183,15 +195,37 @@ AI 会根据您的反馈重新生成策略。
 
 点击策略卡片的 **「一键执行」** 按钮后：
 
-1. **MetaMask 弹出确认交易**（Gas Limit: 500,000，实际消耗约 430,000）
+1. **MetaMask 弹出确认交易**（Gas Limit: 300,000–500,000，视协议而定）
 2. 前端调用 Vault 合约的 `depositAndExecute(adapterAddress)`，附带 ETH
-3. **资金流转**（一笔交易完成）：
+3. **资金流转**（一笔交易完成，以下为各协议的流转路径）：
 
+**Aave V3：**
 ```
-你的钱包 → Vault → AaveV3Adapter → Aave Gateway → Aave Pool
+钱包 ETH → Vault → AaveV3Adapter → Aave Gateway → Aave Pool
                                                       ↓
                                               Vault 收到 aWETH
-                                              持仓记录写入链上
+```
+
+**Compound V3：**
+```
+钱包 ETH → Vault → CompoundV3Adapter → WETH 包装 → Comet Supply
+                                                      ↓
+                                              Vault 收到 Comet 份额
+```
+
+**Lido（Mock）：**
+```
+钱包 ETH → Vault → LidoAdapter → MockStETH.submit → Mint stETH
+                                                      ↓
+                                              Vault 收到 stETH
+```
+
+**Uniswap V3：**
+```
+钱包 ETH → Vault → UniswapV3Adapter → WETH 包装 → NonfungiblePositionManager.mint
+                                                      ↓
+                                     Adapter 持有 NFT LP 头寸
+                                     Vault 收到 dpUNI3 份额凭证
 ```
 
 4. 交易确认后：
@@ -203,16 +237,29 @@ AI 会根据您的反馈重新生成策略。
 
 ### 8.2 从 DeFi 协议赎回（withdrawFromProtocol）
 
-在 ACTIVE POSITIONS 中的协议持仓卡片上，点击 **「从 Aave V3 赎回」** 按钮：
+在 ACTIVE POSITIONS 中的协议持仓卡片上，点击 **「从 XXX 赎回」** 按钮：
 
-1. MetaMask 弹出确认交易（Gas Limit: 500,000，实际消耗约 375,000）
+1. MetaMask 弹出确认交易（Gas Limit: 500,000）
 2. **资金流转**（一笔交易完成）：
 
+**Aave V3 赎回：**
 ```
-Vault 将 aWETH 转给 Adapter → Adapter 通过 Gateway 从 Aave Pool 取回 ETH
-                                                                  ↓
-                                                          ETH 返回 Vault
-                                                     记入你的 Vault 余额
+Vault 将 aWETH 转给 Adapter → Adapter 通过 Gateway 从 Aave Pool 取回 ETH → 返回 Vault 余额
+```
+
+**Compound V3 赎回：**
+```
+Vault 将 Comet 份额转给 Adapter → Adapter 调 comet.withdraw(max) → WETH 解包 → ETH 返回 Vault 余额
+```
+
+**Lido 赎回：**
+```
+Vault 将 stETH 转给 Adapter → MockStETH.withdraw (burn stETH) → ETH 返回 Vault 余额
+```
+
+**Uniswap V3 赎回：**
+```
+Vault 将 dpUNI3 转给 Adapter → Adapter 移除 LP 流动性 → Collect 回收资产 → WETH 解包 → ETH 返回 Vault 余额
 ```
 
 3. 赎回完成后：
@@ -231,21 +278,95 @@ Vault 将 aWETH 转给 Adapter → Adapter 通过 Gateway 从 Aave Pool 取回 E
 ### 8.4 完整资金流程
 
 ```
-存入：  钱包 ETH → Vault → Adapter → Aave Pool（获得 aWETH）
-赎回：  Aave Pool → Gateway 解包 → ETH 返回 Vault 余额
+存入：  钱包 ETH → Vault → Adapter → 协议（获得 receipt token）
+赎回：  协议 → Adapter 解包 → ETH 返回 Vault 余额
 提取：  Vault 余额 → 钱包 ETH
 ```
+
+> 所有协议的存入/赎回/提取流程完全一致，Vault 合约和前端代码**零改动**即可支持新协议，只需部署新 Adapter + 后端注册。
 
 ### 8.5 安全提示
 
 - 将 ETH 存入金库即表示信任项目方配置的合规操作体系，详见 `docs/DESIGN.md` 第 5 节。
 - **仅使用测试网资金**。
 - 保管好钱包助记词/私钥，不要向任何人泄露。
-- 链上执行需要 Gas 费（测试 ETH），每次交易约消耗 375,000-450,000 gas。
+- 链上执行需要 Gas 费（测试 ETH），每次交易约消耗 250,000-500,000 gas（视协议复杂度而定）。
 
 ---
 
-## 9. 后端服务管理（管理员）
+## 9. 用户故事（典型操作场景）
+
+### 故事 1：保守型 — 存 ETH 到 Aave V3 赚借贷利息
+
+> **场景**：用户有 2 ETH 闲置资金，希望稳健地赚取借贷利息，不愿承担过高风险。
+
+**操作步骤：**
+1. 连接 MetaMask → 切换到 Sepolia
+2. 在聊天框输入：**"我有 2 ETH，帮我找一个低风险的借贷协议"**
+3. AI 回复推荐 Aave V3（APY 约 2.85%，Low 风险，Audited）
+4. 点击策略卡片的**「一键执行」**
+5. MetaMask 确认交易 → 等待上链
+6. 仪表盘显示 **Aave V3** 持仓卡片，实时显示利息增长
+
+**赎回**：点击持仓卡片的**「从 Aave V3 赎回」** → 资金退回 Vault → 再点**「提取」**到钱包
+
+---
+
+### 故事 2：进取型 — 存 ETH 到 Compound V3 赚供给利率
+
+> **场景**：用户想尝试 Compound 协议，对比不同借贷平台的利率。
+
+**操作步骤：**
+1. 在聊天框输入：**"投 1 ETH 到 Compound"**
+2. AI 推荐 Compound V3 ETH Supply（APY 约 3.60%）
+3. 一键执行 → MetaMask 确认
+4. 仪表盘显示 **Compound V3** 持仓
+
+**特殊注意**：Compound V3 的内部余额计算有微小的取整误差。赎回时 Adapter 自动使用 `type(uint256).max` 全额提取，避免因精度问题失败。
+
+---
+
+### 故事 3：质押型 — 质押 ETH 到 Lido 获取 stETH
+
+> **场景**：用户想参与以太坊 PoS 质押，但不想运行验证节点。
+
+**操作步骤：**
+1. 在聊天框输入：**"帮我把 1 ETH 质押到 Lido 赚利息"**
+2. AI 推荐 Lido stETH Staking（APY 约 3.25%，Low 风险）
+3. 一键执行 → ETH 转换为 stETH
+4. 仪表盘显示 **Lido** 持仓
+
+**注意**：当前为 Mock 环境（Lido 官方已弃用 Sepolia 测试网）。Mock 合约按 1:1 铸造 stETH，不含真实的 rebasing 利息机制。主网上线时可替换为真实 Lido 合约。
+
+---
+
+### 故事 4：流动性提供型 — 在 Uniswap V3 做 LP
+
+> **场景**：用户想通过为 DEX 提供流动性来赚取交易手续费。
+
+**操作步骤：**
+1. 在聊天框输入：**"帮我用 0.5 ETH 做 Uniswap V3 的流动性提供"**
+2. AI 推荐 Uniswap V3 ETH LP（APY 约 5.20%，Medium 风险）
+3. 一键执行 → ETH 包装为 WETH → 创建 LP 头寸
+4. 仪表盘显示 **Uniswap V3** 持仓
+
+**技术说明**：Uni V3 的 LP 头寸为 ERC-721 NFT，由 Adapter 内部持有。Vault 通过 ERC-20 份额凭证 (dpUNI3) 追踪用户权益。赎回时 Adapter 自动移除流动性、回收资产、解包 WETH 并返还 ETH。
+
+---
+
+### 故事 5：AI 自主推荐 — 不指定协议
+
+> **场景**：用户不确定选哪个协议，完全依赖 AI 推荐。
+
+**操作步骤：**
+1. 在聊天框输入：**"我有 3 ETH，帮我找最优策略"**
+2. AI 综合分析 4 个协议的实时 APY、风险等级、TVL，给出最优推荐
+3. 若不满意，可继续对话：**"风险太高了，换个保守的"** 或 **"收益能不能更高？"**
+4. AI 根据反馈重新生成策略
+
+---
+
+## 10. 后端服务管理（管理员）
 
 ### 9.1 健康检查
 
@@ -291,12 +412,15 @@ curl "http://localhost:3001/api/opportunities?chainId=11155111"
 | `VAULT_ADDRESS_SEPOLIA` | Vault 合约地址 |
 | `EXECUTOR_ADDRESS_SEPOLIA` | Executor 合约地址 |
 | `ADAPTER_ADDRESS_SEPOLIA` | Aave Adapter 地址 |
+| `COMPOUND_ADAPTER_ADDRESS_SEPOLIA` | Compound V3 Adapter 地址 |
+| `LIDO_ADAPTER_ADDRESS_SEPOLIA` | Lido Adapter 地址 |
+| `UNISWAP_V3_ADAPTER_ADDRESS_SEPOLIA` | Uniswap V3 Adapter 地址 |
 
 完整列表见 `backend/.env.example`。
 
 ---
 
-## 10. 合约部署（管理员）
+## 11. 合约部署（管理员）
 
 ```bash
 cd contracts
@@ -309,7 +433,7 @@ npx hardhat run scripts/deploy.ts --network sepolia
 
 ---
 
-## 11. 运行测试（开发者）
+## 12. 运行测试（开发者）
 
 ```bash
 cd contracts
@@ -320,7 +444,7 @@ npx hardhat test
 
 ---
 
-## 12. 常见问题（FAQ）
+## 13. 常见问题（FAQ）
 
 | 问题 | 处理建议 |
 |------|----------|
@@ -337,7 +461,22 @@ npx hardhat test
 
 ---
 
-## 13. 文档索引
+## 14. 已部署合约地址（Sepolia）
+
+| 合约 | 地址 | 说明 |
+|------|------|------|
+| DeFiPilotVault | `0x55CAB33e07D3c99A008D18f96B04641E20D67550` | 主金库（UUPS 代理） |
+| IntentExecutor | `0x7a24b1B70FB60c013513E475CC0107114c6eAbeB` | 意图执行器 |
+| AaveV3Adapter | `0x757537A14C90b0F5fc34Df503Cd12cfABfFCc2Ae` | Aave V3 适配器 |
+| CompoundV3Adapter | `0xBc5249c466B8B57f87ddE537090f0b05b8A0BF76` | Compound V3 适配器 |
+| LidoAdapter | `0x7d6C6Cc74555CF69Ee88CF61612649EeB91183Fd` | Lido Mock 适配器 |
+| MockStETH | `0x42FC8b114Fbc9800a96E24d4dbba43C9AEfc6205` | 模拟 stETH 合约 |
+| UniswapV3Adapter | `0x215c0776f14a4473DcEDD6b5d6F13d4f4909248d` | Uniswap V3 适配器 |
+| UniV3ReceiptToken | `0x7Db0c55D27F3B6546a143d605793c983D9c27c1e` | Uni V3 LP 份额凭证 |
+
+---
+
+## 15. 文档索引
 
 | 文档 | 内容 |
 |------|------|
@@ -348,6 +487,6 @@ npx hardhat test
 
 ---
 
-## 14. 免责声明
+## 16. 免责声明
 
 本说明书描述的是开发与演示环境下的操作方式。数字资产与 DeFi 存在 **本金损失、合约漏洞、钓鱼与误授权** 等风险。请务必 **自主研究（DYOR）**，仅使用您能承受损失的资金进行测试。
