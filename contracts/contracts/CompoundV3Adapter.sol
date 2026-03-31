@@ -37,6 +37,7 @@ contract CompoundV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable
         __Ownable_init(msg.sender);
         comet = IComet(_comet);
         weth = IWETH(_weth);
+        weth.approve(address(_comet), type(uint256).max);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -64,7 +65,7 @@ contract CompoundV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable
         uint256 amount = msg.value;
 
         weth.deposit{value: amount}();
-        weth.approve(address(comet), amount);
+        _ensureApproval();
         comet.supplyTo(onBehalfOf, address(weth), amount);
 
         emit DepositETH(onBehalfOf, amount);
@@ -90,4 +91,10 @@ contract CompoundV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable
     }
 
     receive() external payable {}
+
+    function _ensureApproval() internal {
+        if (IERC20(address(weth)).allowance(address(this), address(comet)) == 0) {
+            weth.approve(address(comet), type(uint256).max);
+        }
+    }
 }

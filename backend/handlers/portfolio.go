@@ -242,11 +242,18 @@ func queryPosition(
 }
 
 func matchProtocol(protocolAddr common.Address, chainID int64) *services.ProtocolEntry {
+	services.RegistryMu.RLock()
+	var name string
 	for _, entry := range services.Registry {
 		if entry.ChainID == chainID && strings.EqualFold(protocolAddr.Hex(), entry.Adapter) {
-			// We must return a pointer to a copy or directly from FindProtocol so we don't return pointer to loop variable that changes
-			return services.FindProtocol(entry.Name, chainID)
+			name = entry.Name
+			break
 		}
+	}
+	services.RegistryMu.RUnlock()
+
+	if name != "" {
+		return services.FindProtocol(name, chainID)
 	}
 	return nil
 }

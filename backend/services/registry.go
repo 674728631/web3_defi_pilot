@@ -43,9 +43,10 @@ var Registry = []ProtocolEntry{
 	},
 	{
 		Name: "Lido", ChainID: 11155111,
-		Adapter: "",
+		Adapter: "0x7d6C6Cc74555CF69Ee88CF61612649EeB91183Fd",
+		AToken:  "0x42FC8b114Fbc9800a96E24d4dbba43C9AEfc6205", // MockStETH
 		Actions: map[string]ActionDef{
-			"stETH Staking": {FunctionSig: "submit(address)", GasEstimate: 200000},
+			"stETH Staking": {FunctionSig: "depositETH(address)", GasEstimate: 250000},
 		},
 		APY: 0, Risk: "Low", TVL: 0, Audited: true,
 	},
@@ -57,6 +58,15 @@ var Registry = []ProtocolEntry{
 			"ETH Supply": {FunctionSig: "depositETH(address)", GasEstimate: 300000},
 		},
 		APY: 0, Risk: "Low", TVL: 0, Audited: true,
+	},
+	{
+		Name: "Uniswap V3", ChainID: 11155111,
+		Adapter: "0x215c0776f14a4473DcEDD6b5d6F13d4f4909248d",
+		AToken:  "0x7Db0c55D27F3B6546a143d605793c983D9c27c1e", // UniV3ReceiptToken
+		Actions: map[string]ActionDef{
+			"ETH LP": {FunctionSig: "depositETH(address)", GasEstimate: 500000},
+		},
+		APY: 0, Risk: "Medium", TVL: 0, Audited: true,
 	},
 	{
 		Name: "Aave V3", ChainID: 421614,
@@ -77,14 +87,15 @@ var Registry = []ProtocolEntry{
 	},
 }
 
-var registryMu sync.RWMutex
+var RegistryMu sync.RWMutex
 
 // DeFi Llama pool search keywords for each protocol
 var defiLlamaMapping = map[string]string{
-	"Aave V3":     "aave-v3",
-	"Lido":        "lido",
-	"Compound V3": "compound-v3",
-	"GMX":         "gmx",
+	"Aave V3":      "aave-v3",
+	"Lido":         "lido",
+	"Compound V3":  "compound-v3",
+	"Uniswap V3":   "uniswap-v3",
+	"GMX":          "gmx",
 }
 
 type llamaPool struct {
@@ -145,8 +156,8 @@ func FetchLiveAPY() error {
 	log.Printf("[REGISTRY] DeFi Llama returned %d pools, matching...", len(llamaResp.Data))
 
 	// Match pools to our registry entries
-	registryMu.Lock()
-	defer registryMu.Unlock()
+	RegistryMu.Lock()
+	defer RegistryMu.Unlock()
 
 	for i := range Registry {
 		entry := &Registry[i]
@@ -217,14 +228,15 @@ func setFallbackData() {
 		APY float64
 		TVL float64
 	}{
-		"Aave V3":     {APY: 2.85, TVL: 8_500_000_000},
-		"Lido":        {APY: 3.25, TVL: 14_200_000_000},
-		"Compound V3": {APY: 3.60, TVL: 3_200_000_000},
-		"GMX":         {APY: 7.50, TVL: 520_000_000},
+		"Aave V3":      {APY: 2.85, TVL: 8_500_000_000},
+		"Lido":         {APY: 3.25, TVL: 14_200_000_000},
+		"Compound V3":  {APY: 3.60, TVL: 3_200_000_000},
+		"Uniswap V3":   {APY: 5.20, TVL: 4_800_000_000},
+		"GMX":          {APY: 7.50, TVL: 520_000_000},
 	}
 
-	registryMu.Lock()
-	defer registryMu.Unlock()
+	RegistryMu.Lock()
+	defer RegistryMu.Unlock()
 
 	for i := range Registry {
 		if fb, ok := fallback[Registry[i].Name]; ok {
@@ -237,8 +249,8 @@ func setFallbackData() {
 
 // FindProtocol looks up a protocol by name and chain
 func FindProtocol(name string, chainID int64) *ProtocolEntry {
-	registryMu.RLock()
-	defer registryMu.RUnlock()
+	RegistryMu.RLock()
+	defer RegistryMu.RUnlock()
 
 	for i := range Registry {
 		if Registry[i].Name == name && Registry[i].ChainID == chainID {
@@ -253,8 +265,8 @@ func GetProtocolsByRisk(maxRisk string, chainID int64) []ProtocolEntry {
 	riskOrder := map[string]int{"Low": 0, "Medium": 1, "High": 2}
 	maxLevel := riskOrder[maxRisk]
 
-	registryMu.RLock()
-	defer registryMu.RUnlock()
+	RegistryMu.RLock()
+	defer RegistryMu.RUnlock()
 
 	var result []ProtocolEntry
 	for _, p := range Registry {
@@ -267,8 +279,8 @@ func GetProtocolsByRisk(maxRisk string, chainID int64) []ProtocolEntry {
 
 // BuildProtocolContext generates a text summary for AI system prompt injection
 func BuildProtocolContext() string {
-	registryMu.RLock()
-	defer registryMu.RUnlock()
+	RegistryMu.RLock()
+	defer RegistryMu.RUnlock()
 
 	var lines string
 	for _, p := range Registry {
