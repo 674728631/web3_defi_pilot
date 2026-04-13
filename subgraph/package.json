@@ -1,0 +1,20 @@
+{
+  "name": "subgraph",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph codegen && graph build",
+    "deploy": "graph deploy --studio defi-pilot",
+    "create-local": "graph create --node http://localhost:8020/ defi-pilot",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 defi-pilot"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@graphprotocol/graph-cli": "^0.98.1",
+    "@graphprotocol/graph-ts": "^0.38.2"
+  }
+}

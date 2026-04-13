@@ -56,9 +56,13 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
     /// @notice 用户 nonce，防止签名重放
     mapping(address => uint256) public nonces;
 
+    /// @notice 是否强制要求用户签名（true 时 executeBatch 不可用，仅 executeBatchWithSig 可调用）
+    bool public signatureRequired;
+
     event IntentsBatchExecuted(address indexed user, uint256 count);
     event SolverUpdated(address solver, bool status);
     event VaultUpdated(address vault);
+    event SignatureRequirementChanged(bool required);
 
     modifier onlySolver() {
         require(solvers[msg.sender] || msg.sender == owner(), "Not a solver");
@@ -82,12 +86,14 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
 
     /**
      * @notice 批量执行用户意图（无签名，Solver/Owner 直接路径）
-     * @dev 保留向后兼容；生产环境前端应优先使用 executeBatchWithSig
+     * @dev 保留向后兼容；当 signatureRequired=true 时此函数被禁用。
+     *      生产环境前端应优先使用 executeBatchWithSig。
      */
     function executeBatch(
         address user,
         Intent[] calldata intents
     ) external onlySolver whenNotPaused {
+        require(!signatureRequired, "Signature required: use executeBatchWithSig");
         _executeBatch(user, intents);
     }
 
@@ -104,10 +110,13 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
         uint256 deadline,
         bytes calldata signature
     ) external onlySolver whenNotPaused {
+        // ① 检查签名是否过期
         require(block.timestamp <= deadline, "Signature expired");
 
+        // ② 将所有 intent 逐条哈希后合并为一个结构化哈希
         bytes32 intentsHash = _hashIntents(intents);
 
+        // ③ 构造 EIP-712 structHash（包含 nonce 防重放 + deadline 防过期）
         bytes32 structHash = keccak256(abi.encode(
             BATCH_TYPEHASH,
             user,
@@ -115,15 +124,19 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
             nonces[user]++,
             deadline
         ));
+
+        // ④ 使用 EIP-712 域分隔符生成最终 digest，恢复签名者地址并校验
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = ECDSA.recover(digest, signature);
         require(signer == user, "Invalid signature");
 
+        // ⑤ 签名验证通过，执行批量策略
         _executeBatch(user, intents);
     }
 
     /// @dev 内部批量执行逻辑，复用于两个入口
     function _executeBatch(address user, Intent[] calldata intents) internal {
+        // 逐条遍历 intent，依次调用 Vault.executeStrategy 触发对应协议交互
         for (uint256 i = 0; i < intents.length; i++) {
             vault.executeStrategy(
                 user,
@@ -139,6 +152,7 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
     function _hashIntents(Intent[] calldata intents) internal pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](intents.length);
         for (uint256 i = 0; i < intents.length; i++) {
+            // 每个 intent 的 data 字段先单独 keccak256（EIP-712 对 bytes 类型的要求）
             hashes[i] = keccak256(abi.encode(
                 INTENT_TYPEHASH,
                 intents[i].protocol,
@@ -146,6 +160,7 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
                 keccak256(intents[i].data)
             ));
         }
+        // 将所有单条哈希紧凑拼接后再哈希，得到整个数组的唯一摘要
         return keccak256(abi.encodePacked(hashes));
     }
 
@@ -158,6 +173,13 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
         require(_vault != address(0), "Zero address");
         vault = IDeFiPilotVault(_vault);
         emit VaultUpdated(_vault);
+    }
+
+    /// @notice 切换是否强制要求用户 EIP-712 签名
+    /// @param required true=仅允许 executeBatchWithSig，false=两种路径均可用
+    function setSignatureRequired(bool required) external onlyOwner {
+        signatureRequired = required;
+        emit SignatureRequirementChanged(required);
     }
 
     function pause() external onlyOwner {

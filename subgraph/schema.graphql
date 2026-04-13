@@ -1,0 +1,121 @@
+"""
+DeFiPilot Vault 全局统计数据（单例，id = "global"）
+"""
+type VaultStats @entity(immutable: false) {
+  id: String!
+  totalUsers: Int!
+  totalDeposits: BigInt!
+  totalWithdrawals: BigInt!
+  totalPositionsCreated: Int!
+  totalPositionsClosed: Int!
+  totalEthRescued: BigInt!
+}
+
+"""
+用户实体：聚合链上 ethBalance 变动和持仓记录
+"""
+type User @entity(immutable: false) {
+  id: Bytes!                    # 用户地址
+  ethBalance: BigInt!           # 当前可用 ETH 余额
+  totalDeposited: BigInt!       # 累计存入
+  totalWithdrawn: BigInt!       # 累计提取
+  positionCount: Int!           # 累计持仓数
+  activePositionCount: Int!     # 当前活跃持仓数
+  firstSeenAt: BigInt!          # 首次出现的区块时间戳
+  lastActivityAt: BigInt!       # 最后操作时间戳
+  positions: [Position!]! @derivedFrom(field: "user")
+  deposits: [DepositEvent!]! @derivedFrom(field: "user")
+  withdrawals: [WithdrawEvent!]! @derivedFrom(field: "user")
+}
+
+"""
+持仓实体：对应链上 Position struct
+"""
+type Position @entity(immutable: false) {
+  id: String!                   # "{userAddr}-{positionId}"
+  user: User!
+  positionId: BigInt!           # 链上 positionId
+  protocol: Bytes!              # Adapter 地址
+  amount: BigInt!               # 投入金额
+  receivedToken: Bytes          # aToken / receipt token 地址
+  receivedAmount: BigInt        # 收到的 receipt token 数量
+  active: Boolean!
+  createdAt: BigInt!            # 创建时间戳
+  createdTx: Bytes!             # 创建交易哈希
+  closedAt: BigInt              # 关闭时间戳
+  closedTx: Bytes               # 关闭交易哈希
+  ethReceived: BigInt           # 赎回时收到的 ETH
+}
+
+"""
+存款事件记录
+"""
+type DepositEvent @entity(immutable: true) {
+  id: Bytes!                    # 交易哈希 + logIndex
+  user: User!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+"""
+提款事件记录
+"""
+type WithdrawEvent @entity(immutable: true) {
+  id: Bytes!                    # 交易哈希 + logIndex
+  user: User!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+"""
+策略执行事件记录
+"""
+type StrategyEvent @entity(immutable: true) {
+  id: Bytes!
+  user: User!
+  protocol: Bytes!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+"""
+持仓关闭事件记录
+"""
+type PositionClosedEvent @entity(immutable: true) {
+  id: Bytes!
+  user: User!
+  positionId: BigInt!
+  ethReceived: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+"""
+协议白名单变更记录
+"""
+type ProtocolWhitelistEvent @entity(immutable: true) {
+  id: Bytes!
+  protocol: Bytes!
+  status: Boolean!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+"""
+IntentExecutor 批量执行事件
+"""
+type IntentsBatchEvent @entity(immutable: true) {
+  id: Bytes!
+  user: Bytes!
+  count: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}

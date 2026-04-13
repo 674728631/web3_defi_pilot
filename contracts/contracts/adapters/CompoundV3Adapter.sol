@@ -5,7 +5,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./interfaces/ICompoundV3.sol";
+import "../interfaces/ICompoundV3.sol";
 
 /**
  * @title CompoundV3Adapter
@@ -64,8 +64,11 @@ contract CompoundV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable
     function depositETH(address onBehalfOf) external payable onlyVault {
         uint256 amount = msg.value;
 
+        // ① 将收到的 ETH 包装为 WETH
         weth.deposit{value: amount}();
+        // ② 确保 WETH 对 Comet 的授权额度充足
         _ensureApproval();
+        // ③ 将 WETH 供应到 Compound V3，Comet 记录余额给 onBehalfOf
         comet.supplyTo(onBehalfOf, address(weth), amount);
 
         emit DepositETH(onBehalfOf, amount);
@@ -78,13 +81,14 @@ contract CompoundV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable
      * @dev 调用前，Vault 须已将 Comet tokens（供应份额）转入本合约
      */
     function withdrawETH(uint256 amount, address to) external onlyVault {
-        // Use type(uint256).max to withdraw the entire Comet balance. 
-        // This avoids reverting due to presentValue <-> principal rounding errors.
+        // ① 从 Comet 取出全部 WETH（使用 max 避免 presentValue ↔ principal 舍入误差导致 revert）
         comet.withdraw(address(weth), type(uint256).max);
-        
+
+        // ② 将取出的 WETH 解包为原生 ETH
         uint256 wethBal = weth.balanceOf(address(this));
         weth.withdraw(wethBal);
-        
+
+        // ③ 将 ETH 发送到目标地址（通常为 Vault）
         (bool sent, ) = to.call{value: wethBal}("");
         require(sent, "ETH transfer failed");
         emit WithdrawETH(to, wethBal);
@@ -92,6 +96,7 @@ contract CompoundV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable
 
     receive() external payable {}
 
+    /// @dev 惰性授权：仅当当前额度归零时才重新授予无限授权，节省 gas
     function _ensureApproval() internal {
         if (IERC20(address(weth)).allowance(address(this), address(comet)) == 0) {
             weth.approve(address(comet), type(uint256).max);

@@ -9,10 +9,14 @@ const translations = {
   'nav.subtitle': { en: 'AI CROSS-CHAIN PROTOCOL', zh: 'AI 跨链协议' },
   'nav.multiChain': { en: 'Multi-Chain', zh: '多链' },
   'nav.connectWallet': { en: 'Connect Wallet', zh: '连接钱包' },
+  'nav.themeToLight': { en: 'Switch to light mode', zh: '切换到浅色模式' },
+  'nav.themeToDark': { en: 'Switch to dark mode', zh: '切换到深色模式' },
 
   // ChatPanel
   'chat.title': { en: 'PILOT AI', zh: 'PILOT AI' },
   'chat.status': { en: 'Online — Monitoring 6 chains', zh: '在线 — 监控 6 条链' },
+  'chat.statusLive': { en: 'Online — Monitoring {total} chains ({healthy} healthy)', zh: '在线 — 监控 {total} 条链 ({healthy} 健康)' },
+  'chat.statusOffline': { en: 'Connecting...', zh: '连接中...' },
   'chat.placeholder': { en: 'Tell Pilot AI your DeFi intent...', zh: '告诉 Pilot AI 你的 DeFi 意图...' },
   'chat.walletRequired': { en: 'Please connect your wallet first to use AI features', zh: '请先连接钱包后再使用 AI 功能' },
   'chat.placeholderNoWallet': { en: 'Connect wallet to start...', zh: '连接钱包后开始...' },

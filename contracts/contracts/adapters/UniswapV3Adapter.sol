@@ -5,8 +5,8 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./interfaces/ICompoundV3.sol"; // for IWETH
-import "./interfaces/IUniswapV3.sol";
+import "../interfaces/ICompoundV3.sol"; // for IWETH
+import "../interfaces/IUniswapV3.sol";
 import "./UniV3ReceiptToken.sol";
 
 /**
@@ -88,16 +88,19 @@ contract UniswapV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable 
      * @param onBehalfOf receipt token 接收地址（通常为 Vault）
      */
     function depositETH(address onBehalfOf) external payable onlyVault {
+        // ① 将收到的 ETH 包装为 WETH
         uint256 amount = msg.value;
         weth.deposit{value: amount}();
 
-        // Determine token ordering: WETH vs pairedToken
+        // ② 确定 Uniswap V3 池中 token0/token1 的排序（地址小的在前）
         (address token0, address token1) = address(weth) < pairedToken
             ? (address(weth), pairedToken)
             : (pairedToken, address(weth));
 
         bool wethIsToken0 = (token0 == address(weth));
 
+        // ③ 铸造新的 LP 头寸（单边 WETH，另一侧为 0）
+        //    无论是否已有头寸，均创建新 NFT 以简化逻辑
         if (currentTokenId == 0) {
             INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
                 token0: token0,
@@ -117,8 +120,6 @@ contract UniswapV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable 
             currentTokenId = tokenId;
             emit PositionCreated(tokenId, liquidity);
         } else {
-            // Add to existing position via increase liquidity
-            // For simplicity, we mint a new position each time
             INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
                 token0: token0,
                 token1: token1,
@@ -138,6 +139,7 @@ contract UniswapV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable 
             emit PositionCreated(tokenId, liquidity);
         }
 
+        // ④ 累计存入总量，并铸造等量 receipt token (dpUNI3) 给 Vault 用于余额追踪
         totalDeposited += amount;
         receiptToken.mint(onBehalfOf, amount);
         emit DepositETH(onBehalfOf, amount);
@@ -149,13 +151,15 @@ contract UniswapV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable 
      * @param to ETH 接收地址（通常为 Vault）
      */
     function withdrawETH(uint256 amount, address to) external onlyVault {
+        // ① 校验：Vault 必须已将 receipt token 转入本合约，且存在活跃 LP 头寸
         uint256 receiptBal = receiptToken.balanceOf(address(this));
         require(receiptBal > 0, "No receipt tokens");
         require(currentTokenId != 0, "No position");
 
+        // ② 销毁 receipt token，代表赎回凭证已使用
         receiptToken.burn(address(this), receiptBal);
 
-        // Get position liquidity
+        // ③ 查询当前 LP 头寸的流动性，然后全额移除
         (, , , , , , , uint128 liquidity, , , , ) = positionManager.positions(currentTokenId);
 
         if (liquidity > 0) {
@@ -170,6 +174,7 @@ contract UniswapV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable 
             );
         }
 
+        // ④ 收取移除流动性后释放的代币（含累积的交易手续费收益）
         positionManager.collect(
             INonfungiblePositionManager.CollectParams({
                 tokenId: currentTokenId,
@@ -179,12 +184,13 @@ contract UniswapV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable 
             })
         );
 
-        // Unwrap WETH to ETH
+        // ⑤ 将收到的 WETH 解包为原生 ETH
         uint256 wethBal = weth.balanceOf(address(this));
         if (wethBal > 0) {
             weth.withdraw(wethBal);
         }
 
+        // ⑥ 将全部 ETH 发送到目标地址，并重置 Adapter 状态
         uint256 ethBal = address(this).balance;
         if (ethBal > 0) {
             (bool sent, ) = to.call{value: ethBal}("");

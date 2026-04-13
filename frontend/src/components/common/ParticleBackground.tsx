@@ -104,31 +104,13 @@ export default function ParticleBackground() {
       <div className="orb orb-3" />
 
       {/* Particle Canvas */}
-      <canvas ref={canvasRef} className="fixed inset-0 z-0 opacity-40" />
+      <canvas ref={canvasRef} className="particle-canvas fixed inset-0 z-0 opacity-40" />
 
       {/* Grid overlay */}
-      <div
-        className="fixed inset-0 z-[1] pointer-events-none"
-        style={{
-          backgroundImage:
-            'linear-gradient(rgba(34,211,238,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.03) 1px, transparent 1px)',
-          backgroundSize: '50px 50px',
-          animation: 'gridMove 20s linear infinite',
-        }}
-      />
+      <div className="particle-grid-bg fixed inset-0 z-[1] pointer-events-none" />
 
       {/* Radial vignette */}
-      <div
-        className="fixed inset-0 z-[1] pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse at center, transparent 40%, #050508 100%)' }}
-      />
-
-      <style>{`
-        @keyframes gridMove {
-          0% { background-position: 0 0; }
-          100% { background-position: 50px 50px; }
-        }
-      `}</style>
+      <div className="particle-vignette fixed inset-0 z-[1] pointer-events-none" />
     </>
   )
 }

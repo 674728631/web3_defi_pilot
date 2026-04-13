@@ -24,5 +24,12 @@ contracts/typechain-types/
 .DS_Store
 Thumbs.db
 
+# Subgraph
+subgraph/generated/
+subgraph/build/
+
+# Playwright MCP
+.playwright-mcp/
+
 # Runtime data
 *.db

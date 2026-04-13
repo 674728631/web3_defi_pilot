@@ -47,7 +47,7 @@ export default function CrossChainFlow() {
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #22d3ee, #a855f7)' }}
+            style={{ background: 'var(--gradient-flow-node)' }}
           >
             <span className="text-xl">🔗</span>
           </div>
@@ -70,7 +70,7 @@ export default function CrossChainFlow() {
             return (
               <div key={i} className="flex flex-col items-center w-[120px] gap-1 z-[1]">
                 <div className="text-[10px] text-cyan-dim font-medium whitespace-nowrap">{node.label}</div>
-                <div className="w-full h-0.5 relative rounded-sm overflow-visible" style={{ background: 'linear-gradient(90deg, #22d3ee, #a855f7)' }}>
+                <div className="w-full h-0.5 relative rounded-sm overflow-visible" style={{ background: 'var(--gradient-flow-line)' }}>
                   <span
                     className="absolute -top-[3px] w-5 h-2 rounded bg-cyber-cyan shadow-[0_0_10px_rgba(34,211,238,0.3)]"
                     style={{ animation: `flowParticle 2s ease-in-out ${i * 0.25}s infinite` }}

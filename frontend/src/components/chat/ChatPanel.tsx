@@ -3,6 +3,7 @@ import { useAccount } from 'wagmi'
 import { useChatStore } from '@/stores/chatStore'
 import { useChat } from '@/hooks/useChat'
 import { useExecuteStrategy } from '@/hooks/useExecuteStrategy'
+import { useChainHealth } from '@/hooks/useChainHealth'
 import { useT } from '@/utils/i18n'
 import MessageBubble from './MessageBubble'
 
@@ -15,6 +16,7 @@ export default function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const t = useT()
   const { isConnected } = useAccount()
+  const { total, healthy, loading: chainLoading } = useChainHealth()
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -43,13 +45,13 @@ export default function ChatPanel() {
   }
 
   return (
-    <div className="border-r border-white/5 flex flex-col h-[calc(100vh-64px)] overflow-hidden glass-card" style={{ borderRadius: 0 }}>
+    <div className="border-r border-border-subtle flex flex-col h-[calc(100vh-64px)] overflow-hidden glass-card" style={{ borderRadius: 0 }}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-white/5 shrink-0">
+      <div className="flex items-center gap-3 px-6 py-5 border-b border-border-subtle shrink-0">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center text-xl relative"
           style={{
-            background: 'linear-gradient(135deg, #22d3ee, #a855f7, #ec4899)',
+            background: 'var(--gradient-chat-avatar)',
             boxShadow: '0 0 25px rgba(34,211,238,0.3)',
           }}
         >
@@ -58,9 +60,14 @@ export default function ChatPanel() {
         </div>
         <div>
           <h3 className="font-display text-sm font-semibold tracking-wider gradient-text">{t('chat.title')}</h3>
-          <span className="text-[11px] text-cyber-green flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyber-green pulse-live inline-block" style={{ color: '#10b981' }} />
-            {t('chat.status')}
+          <span className={`text-[11px] flex items-center gap-1 ${total > 0 && healthy === total ? 'text-cyber-green' : total > 0 ? 'text-neon-amber' : 'text-text-dim'}`}>
+            <span
+              className={`w-1.5 h-1.5 rounded-full inline-block ${total > 0 ? 'bg-cyber-green pulse-live' : 'bg-text-dim'}`}
+              style={total > 0 ? { color: '#10b981' } : undefined}
+            />
+            {chainLoading || total === 0
+              ? t('chat.statusOffline')
+              : t('chat.statusLive').replace('{total}', String(total)).replace('{healthy}', String(healthy))}
           </span>
         </div>
       </div>
@@ -114,9 +121,9 @@ export default function ChatPanel() {
       )}
 
       {/* Input */}
-      <div className="shrink-0 px-5 py-4 border-t border-white/5" style={{ background: 'rgba(5,5,8,0.9)' }}>
+      <div className="shrink-0 px-5 py-4 border-t border-border-subtle bg-bg-primary/95 backdrop-blur-md">
         <div className={`flex items-center gap-2.5 px-[18px] py-2 pr-2 rounded-[14px] border bg-bg-glass transition-all ${
-          isConnected ? 'border-cyber-cyan/15 focus-within:border-cyber-cyan/40 focus-within:shadow-[0_0_25px_rgba(34,211,238,0.08)]' : 'border-white/5 opacity-50'
+          isConnected ? 'border-cyber-cyan/15 focus-within:border-cyber-cyan/40 focus-within:shadow-[0_0_25px_rgba(34,211,238,0.08)]' : 'border-border-subtle opacity-50'
         }`}>
           <input
             ref={inputRef}

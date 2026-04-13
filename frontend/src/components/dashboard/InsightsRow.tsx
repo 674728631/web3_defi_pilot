@@ -35,7 +35,7 @@ function InsightCard({ title, icon, iconGradient, items }: { title: string; icon
         <div className="text-[13px] font-semibold font-display tracking-wider">{title}</div>
       </div>
       {items.map((item, i) => (
-        <div key={i} className="flex items-center gap-2.5 py-2 border-b border-white/5 last:border-b-0 text-[12.5px] text-text-secondary">
+        <div key={i} className="flex items-center gap-2.5 py-2 border-b border-border-subtle last:border-b-0 text-[12.5px] text-text-secondary">
           <span
             className="w-1.5 h-1.5 rounded-full shrink-0"
             style={{ background: item.dotColor, boxShadow: `0 0 8px ${item.dotColor}60` }}
@@ -79,13 +79,13 @@ export default function InsightsRow() {
       <InsightCard
         title={t('insights.riskMonitor')}
         icon="🛡️"
-        iconGradient="linear-gradient(135deg, rgba(244,63,94,0.2), rgba(168,85,247,0.2))"
+        iconGradient="var(--gradient-insight-risk)"
         items={riskItems}
       />
       <InsightCard
         title={t('insights.opportunities')}
         icon="💡"
-        iconGradient="linear-gradient(135deg, rgba(34,211,238,0.2), rgba(16,185,129,0.2))"
+        iconGradient="var(--gradient-insight-opp)"
         items={oppItems}
       />
     </div>

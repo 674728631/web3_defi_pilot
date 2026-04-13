@@ -16,8 +16,11 @@
 6. [用户 Vault 余额](#6-用户-vault-余额)
 7. [综合资产查询](#7-综合资产查询)
 8. [AI 机会发现](#8-ai-机会发现)
-9. [数据结构定义](#9-数据结构定义)
-10. [错误码](#10-错误码)
+9. [多链健康监控](#9-多链健康监控)
+10. [ETH 价格查询](#10-eth-价格查询)
+11. [审计日志](#11-审计日志)
+12. [数据结构定义](#12-数据结构定义)
+13. [错误码](#13-错误码)
 
 ---
 
@@ -471,7 +474,138 @@ GET /api/opportunities
 
 ---
 
-## 9. 数据结构定义
+## 9. 多链健康监控
+
+### GET /api/health/chains
+
+对所有已配置的链发起 RPC 心跳（`eth_blockNumber`），返回每条链的连接状态、延迟和最新区块高度。前端 TopNav 和 ChatPanel 使用此接口实时展示链状态。
+
+**请求参数：** 无
+
+**请求示例：**
+
+```
+GET /api/health/chains
+```
+
+**响应体：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `chains` | `ChainStatus[]` | 各链状态数组 |
+| `total` | `number` | 总链数 |
+| `healthy` | `number` | 健康链数 |
+
+**ChainStatus：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `chainId` | `number` | 链 ID |
+| `name` | `string` | 链名称（如 "Ethereum"、"Arbitrum"） |
+| `status` | `string` | `"ok"` 或 `"error"` |
+| `latency_ms` | `number` | RPC 响应延迟（毫秒） |
+| `block` | `number` | 最新区块高度（仅 status=ok 时有值） |
+
+**响应示例：**
+
+```json
+{
+  "chains": [
+    { "chainId": 1, "name": "Ethereum", "status": "ok", "latency_ms": 285, "block": 24783805 },
+    { "chainId": 42161, "name": "Arbitrum", "status": "ok", "latency_ms": 292, "block": 447870944 },
+    { "chainId": 10, "name": "Optimism", "status": "ok", "latency_ms": 1044, "block": 149718173 },
+    { "chainId": 8453, "name": "Base", "status": "ok", "latency_ms": 457, "block": 44122889 },
+    { "chainId": 137, "name": "Polygon", "status": "ok", "latency_ms": 890, "block": 84957539 },
+    { "chainId": 43114, "name": "Avalanche", "status": "ok", "latency_ms": 483, "block": 81821877 },
+    { "chainId": 11155111, "name": "Sepolia", "status": "ok", "latency_ms": 3184, "block": 10566628 },
+    { "chainId": 421614, "name": "Arbitrum Sepolia", "status": "ok", "latency_ms": 1173, "block": 255605146 }
+  ],
+  "total": 8,
+  "healthy": 8
+}
+```
+
+**说明：** 遍历 `config.C.Chains` 中所有链配置，对每条链使用 `ethclient.DialContext` + `client.BlockNumber` 做心跳，超时 5 秒。新增链只需在 `config.go` 中添加配置即可自动纳入检查。
+
+---
+
+## 10. ETH 价格查询
+
+### GET /api/price/eth
+
+返回 ETH 的当前 USD 价格（从 CoinGecko 获取，带缓存）。
+
+**请求参数：** 无
+
+**响应示例：**
+
+```json
+{
+  "symbol": "ETH",
+  "usd": 3650.42
+}
+```
+
+---
+
+## 11. 审计日志
+
+### GET /api/audit/logs
+
+查询链上操作审计日志。
+
+**查询参数：**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `event` | `string` | — | 按事件类型过滤 |
+| `user` | `string` | — | 按用户地址过滤 |
+| `tx` | `string` | — | 按交易哈希过滤 |
+| `limit` | `number` | `50` | 返回条数 |
+| `offset` | `number` | `0` | 分页偏移 |
+
+**响应示例：**
+
+```json
+{
+  "total": 12,
+  "records": [
+    {
+      "id": 1,
+      "event_type": "deposit",
+      "user_address": "0x1234...",
+      "tx_hash": "0xabcd...",
+      "amount": "1000000000000000000",
+      "created_at": "2026-03-20T10:00:00Z"
+    }
+  ],
+  "limit": 50,
+  "offset": 0
+}
+```
+
+### GET /api/audit/stats
+
+返回审计统计概要。
+
+**请求参数：** 无
+
+**响应示例：**
+
+```json
+{
+  "total_events": 42,
+  "by_type": {
+    "deposit": 15,
+    "withdraw": 8,
+    "execute": 19
+  }
+}
+```
+
+---
+
+## 12. 数据结构定义
 
 ### Strategy
 
@@ -535,7 +669,7 @@ interface IntentParam {
 
 ---
 
-## 10. 错误码
+## 13. 错误码
 
 | HTTP 状态码 | 场景 | 响应体示例 |
 |------------|------|-----------|
@@ -605,6 +739,30 @@ curl "http://localhost:3001/api/portfolio?address=0x1234...&chainId=11155111"
 
 ```bash
 curl "http://localhost:3001/api/opportunities"
+```
+
+### 多链健康监控
+
+```bash
+curl "http://localhost:3001/api/health/chains"
+```
+
+### ETH 价格
+
+```bash
+curl "http://localhost:3001/api/price/eth"
+```
+
+### 审计日志
+
+```bash
+curl "http://localhost:3001/api/audit/logs?limit=20"
+```
+
+### 审计统计
+
+```bash
+curl "http://localhost:3001/api/audit/stats"
 ```
 
 ### 服务健康检查

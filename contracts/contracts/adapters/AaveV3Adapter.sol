@@ -5,7 +5,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./interfaces/IAaveV3.sol";
+import "../interfaces/IAaveV3.sol";
 
 /**
  * @title AaveV3Adapter
@@ -55,6 +55,7 @@ contract AaveV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      * @dev 仅 Vault 可调用，防止被用作开放的 Aave 代理网关
      */
     function depositETH(address onBehalfOf) external payable onlyVault {
+        // 将 ETH 通过 Gateway 存入 Aave Pool：Gateway 自动 WETH 包装 → Pool 铸造 aWETH 到 onBehalfOf
         gateway.depositETH{value: msg.value}(pool, onBehalfOf, 0);
         emit DepositETH(onBehalfOf, msg.value);
     }
@@ -66,7 +67,9 @@ contract AaveV3Adapter is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      * @dev 调用前，调用者须已将 aWETH 转入本合约
      */
     function withdrawETH(uint256 amount, address to) external onlyVault {
+        // ① 授权 Gateway 操作 aWETH（Gateway 内部会 transferFrom 后调用 Pool.withdraw）
         aWETH.approve(address(gateway), amount);
+        // ② Gateway 销毁 aWETH → 取出 WETH → 解包为 ETH → 发送到 to
         gateway.withdrawETH(pool, amount, to);
         emit WithdrawETH(to, amount);
     }

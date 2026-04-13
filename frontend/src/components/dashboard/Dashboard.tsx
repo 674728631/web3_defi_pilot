@@ -33,7 +33,7 @@ export default function Dashboard() {
       <div className="flex items-center gap-3">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)' }}
+          style={{ background: 'var(--gradient-section-icon)' }}
         >
           <span className="text-xl">📊</span>
         </div>
@@ -53,19 +53,18 @@ export default function Dashboard() {
       <InsightsRow />
 
       {/* Footer */}
-      <footer className="mt-6 pt-6 border-t border-white/5">
+      <footer className="mt-auto pt-4 border-t border-border-subtle">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <p className="text-sm text-gray-500 font-display tracking-wider">© 2026 DEFI PILOT</p>
-            <div className="flex gap-4 text-xs text-gray-600">
-              <span className="hover:text-gray-400 cursor-pointer transition-colors">Docs</span>
-              <span className="hover:text-gray-400 cursor-pointer transition-colors">GitHub</span>
-              <span className="hover:text-gray-400 cursor-pointer transition-colors">Discord</span>
+            <p className="text-sm text-text-dim font-display tracking-wider">© 2026 DEFI PILOT</p>
+            <div className="flex gap-4 text-xs text-text-secondary">
+              <span className="hover:text-text-primary cursor-pointer transition-colors">Docs</span>
+              <span className="hover:text-text-primary cursor-pointer transition-colors">GitHub</span>
             </div>
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-600">{t('footer.supportedChains')}</span>
+              <span className="text-xs text-text-secondary">{t('footer.supportedChains')}</span>
               <div className="flex gap-1.5">
                 {[
                   { letter: 'E', name: 'Ethereum', bg: 'rgba(59,130,246,0.2)', color: '#3b82f6' },
@@ -87,7 +86,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-600">Protocols:</span>
+              <span className="text-xs text-text-secondary">Protocols:</span>
               <div className="flex gap-1.5">
                 {[
                   { letter: 'Av', name: 'Aave V3', bg: 'rgba(139,92,246,0.2)', color: '#8b5cf6' },

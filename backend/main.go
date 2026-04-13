@@ -20,7 +20,11 @@ func main() {
 
 	dbPath := filepath.Join(".", "audit.db")
 	db.Init(dbPath)
+	db.InitIndexer()
 	defer db.Close()
+
+	// 启动链下事件索引协程（Sepolia）
+	services.StartIndexer(11155111)
 
 	r := gin.Default()
 
@@ -49,6 +53,17 @@ func main() {
 		})
 		api.GET("/audit/logs", handlers.HandleAuditLogs)
 		api.GET("/audit/stats", handlers.HandleAuditStats)
+		api.GET("/health/chains", handlers.HandleChainsHealth)
+
+		// 链下索引 API
+		idx := api.Group("/index")
+		{
+			idx.GET("/stats", handlers.HandleIndexStats)
+			idx.GET("/users", handlers.HandleIndexUsers)
+			idx.GET("/user/:address", handlers.HandleIndexUser)
+			idx.GET("/events", handlers.HandleIndexEvents)
+			idx.GET("/positions/:address", handlers.HandleIndexPositions)
+		}
 	}
 
 	// Health check endpoint

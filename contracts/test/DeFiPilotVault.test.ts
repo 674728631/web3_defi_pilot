@@ -279,3 +279,153 @@ describe("Aave V3 Integration", function () {
     })
   })
 })
+
+// ═══════════════════════════════════════════════════════════
+//  Selector 白名单测试
+// ═══════════════════════════════════════════════════════════
+
+describe("Selector Whitelist", function () {
+  async function deployFixture() {
+    const [owner, user, solver, protocol] = await ethers.getSigners()
+
+    const Vault = await ethers.getContractFactory("DeFiPilotVault")
+    const vault = await upgrades.deployProxy(Vault, [], { kind: "uups" })
+
+    const Executor = await ethers.getContractFactory("IntentExecutor")
+    const executor = await upgrades.deployProxy(Executor, [await vault.getAddress()], { kind: "uups" })
+
+    await vault.setIntentExecutor(await executor.getAddress())
+    await vault.whitelistProtocol(protocol.address, true)
+    await executor.setSolver(solver.address, true)
+
+    await vault.connect(user).deposit({ value: ethers.parseEther("10.0") })
+
+    return { vault, executor, owner, user, solver, protocol }
+  }
+
+  it("should pass when selector check is disabled (default)", async function () {
+    const { vault, executor, solver, user, protocol } = await loadFixture(deployFixture)
+
+    expect(await vault.selectorCheckEnabled()).to.equal(false)
+
+    const intents = [{ protocol: protocol.address, amount: ethers.parseEther("1.0"), data: "0xdeadbeef" }]
+    await executor.connect(solver).executeBatch(user.address, intents)
+    expect(await vault.getUserBalance(user.address)).to.equal(ethers.parseEther("9.0"))
+  })
+
+  it("should reject disallowed selector when check is enabled", async function () {
+    const { vault, executor, solver, user, protocol } = await loadFixture(deployFixture)
+
+    await vault.setSelectorCheckEnabled(true)
+
+    const intents = [{ protocol: protocol.address, amount: ethers.parseEther("1.0"), data: "0xdeadbeef" }]
+    await expect(
+      executor.connect(solver).executeBatch(user.address, intents)
+    ).to.be.revertedWith("Selector not allowed")
+  })
+
+  it("should allow whitelisted selector when check is enabled", async function () {
+    const { vault, executor, solver, user, protocol } = await loadFixture(deployFixture)
+
+    await vault.setSelectorCheckEnabled(true)
+    await vault.setAllowedSelector(protocol.address, "0xdeadbeef", true)
+
+    const intents = [{ protocol: protocol.address, amount: ethers.parseEther("1.0"), data: "0xdeadbeef" }]
+    await executor.connect(solver).executeBatch(user.address, intents)
+    expect(await vault.getUserBalance(user.address)).to.equal(ethers.parseEther("9.0"))
+  })
+
+  it("should allow batch setting selectors", async function () {
+    const { vault, protocol } = await loadFixture(deployFixture)
+
+    const selectors = ["0xdeadbeef", "0xcafebabe"] as const
+    await vault.setAllowedSelectors(protocol.address, [...selectors], true)
+
+    expect(await vault.allowedSelectors(protocol.address, "0xdeadbeef")).to.equal(true)
+    expect(await vault.allowedSelectors(protocol.address, "0xcafebabe")).to.equal(true)
+  })
+
+  it("should reject non-owner from setting selectors", async function () {
+    const { vault, user, protocol } = await loadFixture(deployFixture)
+    await expect(
+      vault.connect(user).setAllowedSelector(protocol.address, "0xdeadbeef", true)
+    ).to.be.reverted
+
+    await expect(
+      vault.connect(user).setSelectorCheckEnabled(true)
+    ).to.be.reverted
+  })
+
+  it("should allow empty data even when check is enabled", async function () {
+    const { vault, executor, solver, user, protocol } = await loadFixture(deployFixture)
+
+    await vault.setSelectorCheckEnabled(true)
+
+    const intents = [{ protocol: protocol.address, amount: ethers.parseEther("1.0"), data: "0x" }]
+    await executor.connect(solver).executeBatch(user.address, intents)
+    expect(await vault.getUserBalance(user.address)).to.equal(ethers.parseEther("9.0"))
+  })
+})
+
+// ═══════════════════════════════════════════════════════════
+//  signatureRequired 开关测试
+// ═══════════════════════════════════════════════════════════
+
+describe("Signature Required Switch", function () {
+  async function deployFixture() {
+    const [owner, user, solver, protocol] = await ethers.getSigners()
+
+    const Vault = await ethers.getContractFactory("DeFiPilotVault")
+    const vault = await upgrades.deployProxy(Vault, [], { kind: "uups" })
+
+    const Executor = await ethers.getContractFactory("IntentExecutor")
+    const executor = await upgrades.deployProxy(Executor, [await vault.getAddress()], { kind: "uups" })
+
+    await vault.setIntentExecutor(await executor.getAddress())
+    await vault.whitelistProtocol(protocol.address, true)
+    await executor.setSolver(solver.address, true)
+
+    await vault.connect(user).deposit({ value: ethers.parseEther("10.0") })
+
+    return { vault, executor, owner, user, solver, protocol }
+  }
+
+  it("should allow unsigned executeBatch when signatureRequired=false (default)", async function () {
+    const { vault, executor, solver, user, protocol } = await loadFixture(deployFixture)
+
+    expect(await executor.signatureRequired()).to.equal(false)
+
+    const intents = [{ protocol: protocol.address, amount: ethers.parseEther("1.0"), data: "0x" }]
+    await executor.connect(solver).executeBatch(user.address, intents)
+    expect(await vault.getUserBalance(user.address)).to.equal(ethers.parseEther("9.0"))
+  })
+
+  it("should reject unsigned executeBatch when signatureRequired=true", async function () {
+    const { executor, solver, user, protocol } = await loadFixture(deployFixture)
+
+    await executor.setSignatureRequired(true)
+
+    const intents = [{ protocol: protocol.address, amount: ethers.parseEther("1.0"), data: "0x" }]
+    await expect(
+      executor.connect(solver).executeBatch(user.address, intents)
+    ).to.be.revertedWith("Signature required: use executeBatchWithSig")
+  })
+
+  it("should reject non-owner from toggling signatureRequired", async function () {
+    const { executor, user } = await loadFixture(deployFixture)
+    await expect(
+      executor.connect(user).setSignatureRequired(true)
+    ).to.be.reverted
+  })
+
+  it("should allow toggling back to false", async function () {
+    const { vault, executor, solver, user, protocol } = await loadFixture(deployFixture)
+
+    await executor.setSignatureRequired(true)
+    await executor.setSignatureRequired(false)
+
+    const intents = [{ protocol: protocol.address, amount: ethers.parseEther("1.0"), data: "0x" }]
+    await executor.connect(solver).executeBatch(user.address, intents)
+    expect(await vault.getUserBalance(user.address)).to.equal(ethers.parseEther("9.0"))
+  })
+})

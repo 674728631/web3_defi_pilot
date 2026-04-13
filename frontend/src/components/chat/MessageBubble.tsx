@@ -18,12 +18,14 @@ export default function MessageBubble({ message, onExecuteStrategy }: Props) {
       <div
         className={`px-[18px] py-3.5 rounded-2xl text-[13.5px] leading-relaxed tracking-wide ${
           isUser
-            ? 'rounded-br-[4px] border border-cyber-purple/20'
+            ? 'rounded-br-[4px] border'
             : 'glass-card rounded-bl-[4px]'
         }`}
-        style={isUser ? {
-          background: 'linear-gradient(135deg, rgba(168,85,247,0.12), rgba(236,72,153,0.12))',
-        } : undefined}
+        style={
+          isUser
+            ? { background: 'var(--gradient-user-msg)', borderColor: 'var(--user-bubble-border)' }
+            : undefined
+        }
       >
         {isUser ? (
           <div>{message.content}</div>

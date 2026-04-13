@@ -59,11 +59,20 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
     /// @notice 各 token 在所有 active position 中的 receivedAmount 总和（用于比例赎回计算）
     mapping(address => uint256) public totalActiveReceived;
 
+    /// @notice 协议级函数选择器白名单：allowedSelectors[protocol][selector] = true
+    /// @dev 仅在 selectorCheckEnabled=true 时，executeStrategy 会校验 data 前 4 字节
+    mapping(address => mapping(bytes4 => bool)) public allowedSelectors;
+
+    /// @notice 是否启用 calldata selector 校验（默认 false，向后兼容）
+    bool public selectorCheckEnabled;
+
     event Deposited(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event StrategyExecuted(address indexed user, address protocol, uint256 amount);
     event PositionClosed(address indexed user, uint256 positionId, uint256 ethReceived);
     event ProtocolWhitelisted(address protocol, bool status);
+    event SelectorAllowed(address indexed protocol, bytes4 selector, bool status);
+    event SelectorCheckToggled(bool enabled);
     event IntentExecutorUpdated(address executor);
     event ETHRescued(address indexed to, uint256 amount);
 
@@ -124,13 +133,22 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
         uint256 amount,
         bytes calldata data
     ) external onlyExecutor nonReentrant whenNotPaused {
+        // ① 校验协议白名单 & 可选的 selector 白名单
         require(whitelistedProtocols[protocol], "Protocol not whitelisted");
+
+        if (selectorCheckEnabled && data.length >= 4) {
+            bytes4 selector = bytes4(data[:4]);
+            require(allowedSelectors[protocol][selector], "Selector not allowed");
+        }
+
+        // ② 从用户账面余额中扣款
         UserInfo storage userInfo = _users[user];
         require(userInfo.ethBalance >= amount, "Insufficient balance");
 
         userInfo.ethBalance -= amount;
         totalEthBalance -= amount;
 
+        // ③ 探测目标协议是否为 Aave 类 Adapter（实现 aWETH()），若是则快照 aToken 余额
         address rToken;
         uint256 rAmount;
         uint256 balBefore;
@@ -142,9 +160,11 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
             } catch {}
         }
 
+        // ④ 将 ETH 连同 calldata 转发到目标协议执行策略
         (bool success, ) = protocol.call{value: amount}(data);
         require(success, "Strategy execution failed");
 
+        // ⑤ 计算 aToken 实际回流量（余额差值），更新全局追踪
         if (rToken != address(0)) {
             rAmount = IERC20(rToken).balanceOf(address(this)) - balBefore;
             if (rAmount > 0) {
@@ -152,6 +172,7 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
             }
         }
 
+        // ⑥ 创建持仓记录，保存协议、金额、aToken 快照等信息
         uint256 posId = userInfo.positionCount++;
         userInfo.positions[posId] = Position({
             protocol: protocol,
@@ -177,16 +198,21 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
     function depositAndExecute(
         address protocol
     ) external payable nonReentrant whenNotPaused {
+        // ① 前置校验：金额 > 0 且协议在白名单内
         require(msg.value > 0, "Zero value");
         require(whitelistedProtocols[protocol], "Not whitelisted");
 
+        // ② 快照当前 aToken 余额，用于后续计算实际回流量
         address aToken = IAaveV3Adapter(protocol).aWETH();
         uint256 before = IERC20(aToken).balanceOf(address(this));
 
+        // ③ ETH 直接转发给 Adapter，强制 onBehalfOf = address(this) 防止篡改接收地址
         IAaveV3Adapter(protocol).depositETH{value: msg.value}(address(this));
 
+        // ④ 通过余额差值计算 Adapter 实际铸造给 Vault 的 aToken 数量
         uint256 received = IERC20(aToken).balanceOf(address(this)) - before;
 
+        // ⑤ 创建持仓记录并更新全局 aToken 追踪量
         uint256 posId = _users[msg.sender].positionCount++;
         _users[msg.sender].positions[posId] = Position({
             protocol: protocol,
@@ -213,6 +239,7 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
      *      最后一笔持仓赎回时自动拿走剩余全部余额（避免粉尘残留）。
      */
     function withdrawFromProtocol(uint256 positionId) external nonReentrant whenNotPaused {
+        // ① 校验持仓有效性：必须活跃且持有 receipt token
         Position storage pos = _users[msg.sender].positions[positionId];
         require(pos.active, "Not active");
         require(pos.receivedToken != address(0), "No received token");
@@ -220,6 +247,8 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
         uint256 currentBalance = IERC20(pos.receivedToken).balanceOf(address(this));
         require(currentBalance > 0, "No tokens to redeem");
 
+        // ② 按比例计算赎回量：用户份额 / 全局活跃份额 × 当前余额（含利息增长）
+        //    最后一笔持仓赎回时 tracked <= receivedAmount，直接拿走全部余额避免粉尘残留
         uint256 tracked = totalActiveReceived[pos.receivedToken];
         uint256 redeemAmount;
 
@@ -232,8 +261,10 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
 
         require(redeemAmount > 0, "Nothing to redeem");
 
+        // ③ 从全局追踪中扣除该持仓的初始份额
         totalActiveReceived[pos.receivedToken] -= pos.receivedAmount;
 
+        // ④ 将按比例计算的 aToken 转给 Adapter，然后调用 withdrawETH 赎回为原生 ETH
         IERC20(pos.receivedToken).safeTransfer(pos.protocol, redeemAmount);
 
         uint256 ethBefore = address(this).balance;
@@ -243,6 +274,7 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
         );
         require(ok, "Withdraw failed");
 
+        // ⑤ 计算实际收到的 ETH，记入用户可提取余额，标记持仓关闭
         uint256 ethReceived = address(this).balance - ethBefore;
 
         _users[msg.sender].ethBalance += ethReceived;
@@ -265,6 +297,29 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
         emit ProtocolWhitelisted(protocol, status);
     }
 
+    /// @notice 设置协议允许的函数选择器
+    /// @param protocol Adapter/协议地址
+    /// @param selector 4 字节函数选择器（如 bytes4(keccak256("depositETH(address)"))）
+    /// @param status true=允许 false=禁止
+    function setAllowedSelector(address protocol, bytes4 selector, bool status) external onlyOwner {
+        allowedSelectors[protocol][selector] = status;
+        emit SelectorAllowed(protocol, selector, status);
+    }
+
+    /// @notice 批量设置协议允许的函数选择器
+    function setAllowedSelectors(address protocol, bytes4[] calldata selectors, bool status) external onlyOwner {
+        for (uint256 i = 0; i < selectors.length; i++) {
+            allowedSelectors[protocol][selectors[i]] = status;
+            emit SelectorAllowed(protocol, selectors[i], status);
+        }
+    }
+
+    /// @notice 启用/禁用 calldata selector 校验
+    function setSelectorCheckEnabled(bool enabled) external onlyOwner {
+        selectorCheckEnabled = enabled;
+        emit SelectorCheckToggled(enabled);
+    }
+
     /// @notice 紧急暂停所有用户操作
     function pause() external onlyOwner {
         _pause();
@@ -280,6 +335,7 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
     /// @param amount 恢复金额（不得超过 actualBalance - totalAccounted）
     function rescueETH(address to, uint256 amount) external onlyOwner {
         require(to != address(0), "Zero address");
+        // 仅可取出 实际余额 - 用户总账面 的盈余部分，保护用户资金
         uint256 surplus = address(this).balance - totalEthBalance;
         require(amount <= surplus, "Exceeds surplus");
         (bool success, ) = to.call{value: amount}("");

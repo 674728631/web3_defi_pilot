@@ -59,7 +59,7 @@ export default function PositionCard({ position, index }: Props) {
       </div>
 
       {/* Metrics */}
-      <div className="flex justify-between pt-3.5 border-t border-white/5">
+      <div className="flex justify-between pt-3.5 border-t border-border-subtle">
         <div>
           <div className="text-[10px] text-text-dim uppercase tracking-wider">{t('position.amount')}</div>
           <div className="font-mono text-sm font-semibold mt-0.5">
@@ -84,7 +84,7 @@ export default function PositionCard({ position, index }: Props) {
 
       {/* Withdraw button */}
       {isVaultPosition && position.amount > 0 && (
-        <div className="mt-3 pt-3 border-t border-white/5">
+        <div className="mt-3 pt-3 border-t border-border-subtle">
           <button
             onClick={() => withdrawFromVault(position.amount.toString())}
             disabled={isWithdrawing}
@@ -97,7 +97,7 @@ export default function PositionCard({ position, index }: Props) {
 
       {/* Protocol position redeem button */}
       {isProtocolPosition && position.amount > 0 && (
-        <div className="mt-3 pt-3 border-t border-white/5">
+        <div className="mt-3 pt-3 border-t border-border-subtle">
           <button
             onClick={() => {
               const posId = parseInt(position.id.replace('pos-', ''), 10)

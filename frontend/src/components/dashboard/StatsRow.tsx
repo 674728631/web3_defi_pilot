@@ -52,7 +52,7 @@ export default function StatsRow() {
         >
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-gray-400 text-xs font-display tracking-wider mb-2">{card.label}</p>
+              <p className="text-text-dim text-xs font-display tracking-wider mb-2">{card.label}</p>
               <p className={`text-3xl font-bold font-display ${card.valueGreen ? 'text-cyber-green' : ''}`}>
                 {!card.valueGreen && (
                   <span className="gradient-text">{card.value}</span>

@@ -170,10 +170,20 @@ VAULT_ADDRESS_ARB=0x0000000000000000000000000000000000000000
 EXECUTOR_ADDRESS_ARB=0x0000000000000000000000000000000000000000
 ADAPTER_ADDRESS_ARB=0x0000000000000000000000000000000000000000
 
+# 主网 RPC（多链健康监控用，均有公共默认值，可选覆盖为自有节点）
+ETH_RPC_URL=https://eth.drpc.org
+ARB_RPC_URL=https://arb1.arbitrum.io/rpc
+OP_RPC_URL=https://optimism.drpc.org
+BASE_RPC_URL=https://mainnet.base.org
+POLYGON_RPC_URL=https://polygon.drpc.org
+AVAX_RPC_URL=https://api.avax.network/ext/bc/C/rpc
+
 # 服务配置
 PORT=3001
 FRONTEND_ORIGIN=http://localhost:5173
 ```
+
+> **注意**：主网 RPC 变量均有公共免费默认值，无需显式配置即可启动。若需更高可用性或避免限流，建议使用 Alchemy/Infura 等付费节点。
 
 ### 2. 启动后端
 

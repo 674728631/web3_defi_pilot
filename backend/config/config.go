@@ -45,6 +45,7 @@ func Load() {
 		SolverPrivateKey: os.Getenv("SOLVER_PRIVATE_KEY"),
 
 		Chains: map[int64]*ChainConfig{
+			// ===== Testnets (deployed) =====
 			11155111: {
 				ChainID:  11155111,
 				RPCURL:   getEnv("SEPOLIA_RPC_URL", "https://rpc.sepolia.org"),
@@ -59,10 +60,39 @@ func Load() {
 				Executor: getEnv("EXECUTOR_ADDRESS_ARB", "0x0000000000000000000000000000000000000000"),
 				Adapter:  getEnv("ADAPTER_ADDRESS_ARB", "0x0000000000000000000000000000000000000000"),
 			},
+			// ===== Mainnets (monitoring only) =====
+			1: {
+				ChainID: 1,
+				RPCURL:  getEnv("ETH_RPC_URL", "https://eth.drpc.org"),
+			},
+			42161: {
+				ChainID: 42161,
+				RPCURL:  getEnv("ARB_RPC_URL", "https://arb1.arbitrum.io/rpc"),
+			},
+			10: {
+				ChainID: 10,
+				RPCURL:  getEnv("OP_RPC_URL", "https://optimism.drpc.org"),
+			},
+			8453: {
+				ChainID: 8453,
+				RPCURL:  getEnv("BASE_RPC_URL", "https://mainnet.base.org"),
+			},
+			137: {
+				ChainID: 137,
+				RPCURL:  getEnv("POLYGON_RPC_URL", "https://polygon.drpc.org"),
+			},
+			43114: {
+				ChainID: 43114,
+				RPCURL:  getEnv("AVAX_RPC_URL", "https://api.avax.network/ext/bc/C/rpc"),
+			},
 		},
 	}
 
-	log.Printf("Config loaded: port=%s, chains=[11155111, 421614]", C.Port)
+	chainIDs := make([]int64, 0, len(C.Chains))
+	for id := range C.Chains {
+		chainIDs = append(chainIDs, id)
+	}
+	log.Printf("Config loaded: port=%s, chains=%v (%d total)", C.Port, chainIDs, len(chainIDs))
 }
 
 func GetChain(chainID int64) *ChainConfig {

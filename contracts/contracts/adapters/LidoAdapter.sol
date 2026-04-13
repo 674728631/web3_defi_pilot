@@ -62,7 +62,9 @@ contract LidoAdapter is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      */
     function depositETH(address onBehalfOf) external payable onlyVault {
         uint256 amount = msg.value;
+        // ① 调用 Lido 的 submit 接口，将 ETH 质押换取 stETH
         stETH.submit{value: amount}(address(0));
+        // ② 将铸造的 stETH 转给 onBehalfOf（通常为 Vault），作为质押凭证
         IERC20(address(stETH)).transfer(onBehalfOf, amount);
         emit DepositETH(onBehalfOf, amount);
     }
@@ -74,9 +76,11 @@ contract LidoAdapter is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      * @dev 调用前，Vault 须已将 stETH 转入本合约
      */
     function withdrawETH(uint256 amount, address to) external onlyVault {
+        // ① 获取 Vault 转入本合约的全部 stETH 余额
         uint256 bal = stETH.balanceOf(address(this));
+        // ② 调用 MockStETH.withdraw 销毁 stETH 取回等量 ETH
         stETH.withdraw(bal);
-
+        // ③ 将取回的 ETH 发送到目标地址
         (bool sent, ) = to.call{value: bal}("");
         require(sent, "ETH transfer failed");
         emit WithdrawETH(to, bal);

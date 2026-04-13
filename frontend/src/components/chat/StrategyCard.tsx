@@ -27,7 +27,7 @@ export default function StrategyCard({ strategy, onExecute }: Props) {
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
         <span className="font-display text-[11px] tracking-[2px] gradient-text font-semibold">{t('strategy.title')}</span>
         <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold ${
           strategy.riskLevel === 'Low'
@@ -44,7 +44,7 @@ export default function StrategyCard({ strategy, onExecute }: Props) {
       {strategy.items.map((item, i) => (
         <div
           key={i}
-          className="flex items-center gap-3 px-4 py-2.5 border-b border-white/5 last:border-b-0 hover:bg-cyber-cyan/[0.03] transition-colors"
+          className="flex items-center gap-3 px-4 py-2.5 border-b border-border-subtle last:border-b-0 hover:bg-cyber-cyan/[0.03] transition-colors"
         >
           <ChainIcon chain={item.chain} />
           <div className="flex-1 min-w-0">
@@ -67,7 +67,7 @@ export default function StrategyCard({ strategy, onExecute }: Props) {
         </button>
         <button
           onClick={handleModify}
-          className="neon-border px-4 py-2.5 rounded-[10px] border border-cyber-cyan/15 text-xs text-text-secondary hover:text-cyber-purple transition-all cursor-pointer"
+          className="neon-border px-4 py-2.5 rounded-[10px] border border-cyber-cyan/15 text-xs text-text-secondary hover:text-cyber-cyan transition-all cursor-pointer"
         >
           {t('strategy.modify')}
         </button>

@@ -33,8 +33,10 @@ backend/
 │   ├── solver.go              # POST /api/execute
 │   ├── tx.go                  # GET /api/tx/:hash
 │   ├── health.go              # GET /api/health/vault + /api/vault/balance
+│   ├── chains.go              # GET /api/health/chains — 多链 RPC 健康监控
 │   ├── portfolio.go           # GET /api/portfolio — 综合资产查询
-│   └── opportunities.go       # GET /api/opportunities — AI 机会发现
+│   ├── opportunities.go       # GET /api/opportunities — AI 机会发现
+│   └── audit.go               # GET /api/audit/logs + /api/audit/stats
 └── services/
     ├── openai.go              # OpenAI 调用 + 策略解析 + fallback
     ├── context.go             # 链上上下文构建
@@ -68,7 +70,7 @@ type ChainConfig struct {
 }
 ```
 
-- `Load()` 从 `.env` 加载所有配置，初始化 Sepolia (11155111) 和 Arbitrum Sepolia (421614) 两条链。
+- `Load()` 从 `.env` 加载所有配置，初始化 **8 条链**：2 条测试网（Sepolia、Arbitrum Sepolia，含合约部署）+ 6 条主网（Ethereum、Arbitrum、Optimism、Base、Polygon、Avalanche，仅监控 RPC 健康）。
 - `GetChain(chainId)` 返回对应链配置，不存在时返回 nil。
 
 **环境变量清单：**
@@ -81,14 +83,20 @@ type ChainConfig struct {
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI 兼容端点 |
 | `OPENAI_MODEL` | `gpt-4o-mini` | 模型 ID |
 | `SOLVER_PRIVATE_KEY` | 空 | Solver 钱包私钥（hex） |
-| `SEPOLIA_RPC_URL` | 空 | Sepolia RPC |
+| `SEPOLIA_RPC_URL` | `https://rpc.sepolia.org` | Sepolia RPC |
 | `VAULT_ADDRESS_SEPOLIA` | 空 | Sepolia Vault 地址 |
 | `EXECUTOR_ADDRESS_SEPOLIA` | 空 | Sepolia Executor 地址 |
 | `ADAPTER_ADDRESS_SEPOLIA` | 空 | Sepolia Adapter 地址 |
-| `ARB_SEPOLIA_RPC_URL` | 空 | Arbitrum Sepolia RPC |
+| `ARB_SEPOLIA_RPC_URL` | `https://sepolia-rollup.arbitrum.io/rpc` | Arbitrum Sepolia RPC |
 | `VAULT_ADDRESS_ARB` | 空 | Arb Sepolia Vault 地址 |
 | `EXECUTOR_ADDRESS_ARB` | 空 | Arb Sepolia Executor 地址 |
 | `ADAPTER_ADDRESS_ARB` | 空 | Arb Sepolia Adapter 地址 |
+| `ETH_RPC_URL` | `https://eth.drpc.org` | Ethereum 主网 RPC（监控用） |
+| `ARB_RPC_URL` | `https://arb1.arbitrum.io/rpc` | Arbitrum 主网 RPC（监控用） |
+| `OP_RPC_URL` | `https://optimism.drpc.org` | Optimism 主网 RPC（监控用） |
+| `BASE_RPC_URL` | `https://mainnet.base.org` | Base 主网 RPC（监控用） |
+| `POLYGON_RPC_URL` | `https://polygon.drpc.org` | Polygon 主网 RPC（监控用） |
+| `AVAX_RPC_URL` | `https://api.avax.network/ext/bc/C/rpc` | Avalanche 主网 RPC（监控用） |
 
 ### 3.2 services/registry.go — 协议注册表
 
@@ -229,6 +237,9 @@ type StrategyItem struct {
 | `health.go` | GET /api/vault/balance | 查询用户 Vault ETH 余额 |
 | `portfolio.go` | GET /api/portfolio | 聚合钱包余额 + Vault 余额 + 链上持仓 + APY + 健康度 |
 | `opportunities.go` | GET /api/opportunities | 返回按 APY 排序的协议机会列表 |
+| `audit.go` | GET /api/audit/logs | 审计日志查询（支持按事件/用户/交易过滤、分页） |
+| `audit.go` | GET /api/audit/stats | 审计统计概要 |
+| `chains.go` | GET /api/health/chains | 遍历所有链配置做 RPC 心跳，返回各链状态/延迟/区块高度 |
 
 ### 3.8 contracts/abi.go — ABI 常量
 
@@ -340,3 +351,4 @@ cors.Config{
 |------|------|
 | 2026-03-20 | v1：初版 |
 | 2026-03-20 | v2：更新 encoder 3 级降级、solver 真实广播、新增 portfolio/opportunities/vault-balance 端点 |
+| 2026-04-01 | v3：新增多链健康监控（chains.go）、6 条主网链配置、审计日志端点 |
