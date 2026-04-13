@@ -13,6 +13,10 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
  * @notice DeFiPilotVault 的接口定义，用于 IntentExecutor 跨合约调用
  */
 interface IDeFiPilotVault {
+    /// @param user 资金所属用户地址，策略在其名下执行
+    /// @param protocol 目标协议或适配器合约地址
+    /// @param amount 本次策略调用涉及的资金数量（单位由协议约定）
+    /// @param data 编码后的协议调用 calldata，由 Vault 转发执行
     function executeStrategy(
         address user,
         address protocol,
@@ -51,7 +55,9 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
         "ExecuteBatch(address user,bytes32 intentsHash,uint256 nonce,uint256 deadline)"
     );
 
+    /// @notice 绑定的 Vault 合约，批量意图最终由此合约调用 `executeStrategy` 转发至各协议
     IDeFiPilotVault public vault;
+    /// @notice 各地址是否为已授权 Solver；为 true 时可调用执行入口（与 Owner 并列）
     mapping(address => bool) public solvers;
     /// @notice 用户 nonce，防止签名重放
     mapping(address => uint256) public nonces;
@@ -59,11 +65,16 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
     /// @notice 是否强制要求用户签名（true 时 executeBatch 不可用，仅 executeBatchWithSig 可调用）
     bool public signatureRequired;
 
+    /// @notice 在一批用户意图全部通过 Vault 执行完毕后发出，便于链下索引与审计
     event IntentsBatchExecuted(address indexed user, uint256 count);
+    /// @notice 在 Owner 更新某地址的 Solver 授权状态（授权或撤销）时发出
     event SolverUpdated(address solver, bool status);
+    /// @notice 在 Owner 更换本合约所绑定的 Vault 地址时发出
     event VaultUpdated(address vault);
+    /// @notice 在 Owner 切换是否强制要求用户 EIP-712 签名时发出
     event SignatureRequirementChanged(bool required);
 
+    /// @dev 限制调用者为已授权 Solver 或合约 Owner，用于执行类入口的访问控制
     modifier onlySolver() {
         require(solvers[msg.sender] || msg.sender == owner(), "Not a solver");
         _;
@@ -74,6 +85,8 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
         _disableInitializers();
     }
 
+    /// @notice 初始化可升级合约：设置 Owner、可暂停模块、EIP-712 域名版本，并绑定 Vault
+    /// @param _vault 初始 DeFiPilot Vault 合约地址，不可为零地址
     function initialize(address _vault) public initializer {
         require(_vault != address(0), "Zero address");
         __Ownable_init(msg.sender);
@@ -164,11 +177,16 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
         return keccak256(abi.encodePacked(hashes));
     }
 
+    /// @notice 由 Owner 设置或撤销某地址的 Solver 权限
+    /// @param solver 待授权或撤销的 Solver 地址
+    /// @param status true 表示授予 Solver 权限，false 表示撤销
     function setSolver(address solver, bool status) external onlyOwner {
         solvers[solver] = status;
         emit SolverUpdated(solver, status);
     }
 
+    /// @notice 由 Owner 更新本执行器绑定的 Vault 合约地址
+    /// @param _vault 新的 Vault 合约地址，不可为零地址
     function setVault(address _vault) external onlyOwner {
         require(_vault != address(0), "Zero address");
         vault = IDeFiPilotVault(_vault);
@@ -182,10 +200,12 @@ contract IntentExecutor is Initializable, OwnableUpgradeable, PausableUpgradeabl
         emit SignatureRequirementChanged(required);
     }
 
+    /// @notice 由 Owner 暂停合约，阻止所有需 `whenNotPaused` 的执行入口
     function pause() external onlyOwner {
         _pause();
     }
 
+    /// @notice 由 Owner 解除暂停，恢复 `executeBatch` 与 `executeBatchWithSig` 等入口
     function unpause() external onlyOwner {
         _unpause();
     }

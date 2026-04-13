@@ -66,14 +66,23 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
     /// @notice 是否启用 calldata selector 校验（默认 false，向后兼容）
     bool public selectorCheckEnabled;
 
+    /// @notice 用户通过 `deposit()` 成功存入 ETH 后发出；表示托管模式下该用户账面 ETH 余额已增加。
     event Deposited(address indexed user, uint256 amount);
+    /// @notice 用户通过 `withdraw()` 成功提取 ETH 后发出；表示相应金额已从账面扣减并完成链上转账。
     event Withdrawn(address indexed user, uint256 amount);
-    event StrategyExecuted(address indexed user, address protocol, uint256 amount);
+    /// @notice 策略执行路径成功完成资金划转后发出（`executeStrategy` 或 `depositAndExecute`）；表示用户资金已按给定金额与目标协议完成交互。
+    event StrategyExecuted(address indexed user, address protocol, uint256 amount, uint256 positionId);
+    /// @notice 用户通过 `withdrawFromProtocol()` 关闭指定持仓并将赎回所得 ETH 记入账面后发出；`ethReceived` 为本次实际计入余额的 ETH 数量。
     event PositionClosed(address indexed user, uint256 positionId, uint256 ethReceived);
+    /// @notice 管理员更新某协议（Adapter）白名单状态后发出；`status` 为 true 表示允许交互，false 表示禁止。
     event ProtocolWhitelisted(address protocol, bool status);
+    /// @notice 管理员更新某协议下允许的 calldata 函数选择器后发出；与 `selectorCheckEnabled` 配合用于限制 `executeStrategy` 可调用的接口。
     event SelectorAllowed(address indexed protocol, bytes4 selector, bool status);
+    /// @notice 管理员开启或关闭 calldata 选择器全局校验后发出；影响 `executeStrategy` 是否校验 `data` 前 4 字节。
     event SelectorCheckToggled(bool enabled);
+    /// @notice 管理员设置新的 `intentExecutor` 地址后发出；新地址（及 owner）可调用 `executeStrategy`。
     event IntentExecutorUpdated(address executor);
+    /// @notice 管理员通过 `rescueETH` 将合约中「实际余额减用户总账面」的盈余 ETH 转出后发出；用于回收误转资金，不影响 `totalEthBalance` 记账。
     event ETHRescued(address indexed to, uint256 amount);
 
     /// @dev 限制仅 IntentExecutor 或 owner 可调用
@@ -87,11 +96,16 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
         _disableInitializers();
     }
 
+    /**
+     * @notice 代理部署后的首次初始化：初始化 OpenZeppelin `Ownable` 与 `Pausable` 模块，并将调用者设为合约 owner。
+     * @dev 实现合约通过 UUPS 代理对外暴露时，仅能调用一次（`initializer` 修饰符保证）。
+     */
     function initialize() public initializer {
         __Ownable_init(msg.sender);
         __Pausable_init();
     }
 
+    /// @notice UUPS 升级授权钩子：仅 owner 可批准将代理指向新的实现合约地址。
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /// @notice 接收 ETH（不自动 deposit，避免 Aave 赎回 ETH 回流时误记账）
@@ -124,7 +138,7 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
     /**
      * @notice 执行 DeFi 策略（Solver/Executor 路径）
      * @dev 从用户 ethBalance 扣款并转发到白名单协议。
-     *      自动检测协议是否为 AaveV3Adapter（实现 aWETH()），
+     *      自动检测协议是否实现 IProtocolAdapter 接口（aWETH()），
      *      若是则追踪 aToken 回流用于后续 withdrawFromProtocol 赎回。
      */
     function executeStrategy(
@@ -133,10 +147,11 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
         uint256 amount,
         bytes calldata data
     ) external onlyExecutor nonReentrant whenNotPaused {
-        // ① 校验协议白名单 & 可选的 selector 白名单
+        // ① 校验协议白名单 & calldata 合法性
         require(whitelistedProtocols[protocol], "Protocol not whitelisted");
+        require(data.length >= 4, "Invalid calldata");
 
-        if (selectorCheckEnabled && data.length >= 4) {
+        if (selectorCheckEnabled) {
             bytes4 selector = bytes4(data[:4]);
             require(allowedSelectors[protocol][selector], "Selector not allowed");
         }
@@ -154,7 +169,7 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
         uint256 balBefore;
 
         if (protocol.code.length > 0) {
-            try IAaveV3Adapter(protocol).aWETH() returns (address aToken) {
+            try IProtocolAdapter(protocol).aWETH() returns (address aToken) {
                 rToken = aToken;
                 balBefore = IERC20(aToken).balanceOf(address(this));
             } catch {}
@@ -184,12 +199,12 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
             active: true
         });
 
-        emit StrategyExecuted(user, protocol, amount);
+        emit StrategyExecuted(user, protocol, amount, posId);
     }
 
     /**
      * @notice 一笔交易完成「存入 ETH + 执行策略 + 记录 aToken 回流」
-     * @param protocol 白名单 Adapter 地址（需实现 IAaveV3Adapter）
+     * @param protocol 白名单 Adapter 地址（需实现 IProtocolAdapter）
      * @dev ETH 不经过 ethBalance 中间状态，直接转发给 Adapter。
      *      合约自动构造 calldata 强制 onBehalfOf = address(this)，
      *      防止用户篡改 aToken 接收地址。
@@ -203,11 +218,11 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
         require(whitelistedProtocols[protocol], "Not whitelisted");
 
         // ② 快照当前 aToken 余额，用于后续计算实际回流量
-        address aToken = IAaveV3Adapter(protocol).aWETH();
-        uint256 before = IERC20(aToken).balanceOf(address(this));
+        address aToken = IProtocolAdapter(protocol).aWETH();    // 获取 receipt token 地址
+        uint256 before = IERC20(aToken).balanceOf(address(this));   // 记录存入前的数量
 
         // ③ ETH 直接转发给 Adapter，强制 onBehalfOf = address(this) 防止篡改接收地址
-        IAaveV3Adapter(protocol).depositETH{value: msg.value}(address(this));
+        IProtocolAdapter(protocol).depositETH{value: msg.value}(address(this));
 
         // ④ 通过余额差值计算 Adapter 实际铸造给 Vault 的 aToken 数量
         uint256 received = IERC20(aToken).balanceOf(address(this)) - before;
@@ -226,7 +241,7 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
 
         totalActiveReceived[aToken] += received;
 
-        emit StrategyExecuted(msg.sender, protocol, msg.value);
+        emit StrategyExecuted(msg.sender, protocol, msg.value, posId);
     }
 
     /**
@@ -286,12 +301,14 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
 
     // ─── Admin ───────────────────────────────────────────
 
+    /// @notice 设置被授权调用 `executeStrategy` 的 IntentExecutor 合约地址；owner 仍可调用。传入零地址将 revert。
     function setIntentExecutor(address executor) external onlyOwner {
         require(executor != address(0), "Zero address");
         intentExecutor = executor;
         emit IntentExecutorUpdated(executor);
     }
 
+    /// @notice 将指定协议（通常为 Adapter）加入或移出白名单；仅白名单协议可在 `executeStrategy` / `depositAndExecute` 中与金库交互。
     function whitelistProtocol(address protocol, bool status) external onlyOwner {
         whitelistedProtocols[protocol] = status;
         emit ProtocolWhitelisted(protocol, status);
@@ -345,14 +362,17 @@ contract DeFiPilotVault is Initializable, OwnableUpgradeable, PausableUpgradeabl
 
     // ─── View ────────────────────────────────────────────
 
+    /// @notice 查询指定用户在金库中的可用 ETH 账面余额（单位 wei），对应 `UserInfo.ethBalance`。
     function getUserBalance(address user) external view returns (uint256) {
         return _users[user].ethBalance;
     }
 
+    /// @notice 查询指定用户已创建的持仓总数（含已关闭），数值等于下一个将分配的 `positionId`。
     function getUserPositionCount(address user) external view returns (uint256) {
         return _users[user].positionCount;
     }
 
+    /// @notice 返回指定用户某个 `positionId` 对应的 `Position` 结构体快照（链上只读视图）。
     function getUserPosition(address user, uint256 posId) external view returns (Position memory) {
         return _users[user].positions[posId];
     }

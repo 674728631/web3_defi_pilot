@@ -10,8 +10,10 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  *      支持 burn stETH → 退回 ETH（模拟提款）
  */
 contract MockStETH is ERC20 {
+    /// @notice 用户通过 submit 存入 ETH 时触发，记录发送方、金额与推荐人参数
     event Submitted(address indexed sender, uint256 amount, address referral);
 
+    /// @notice 初始化模拟 stETH 的 ERC20 名称与符号，不含链上预言机或 rebasing 逻辑
     constructor() ERC20("Mock Staked Ether", "stETH") {}
 
     /// @notice 模拟 Lido 的 submit(referral) 接口，接收 ETH 铸造 stETH
@@ -30,5 +32,6 @@ contract MockStETH is ERC20 {
         require(sent, "ETH transfer failed");
     }
 
+    /// @notice 允许向合约转入原生 ETH（测试用；主要质押入口为 submit）
     receive() external payable {}
 }
